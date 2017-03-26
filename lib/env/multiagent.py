@@ -26,6 +26,7 @@ class MultiAgent(object):
             curses.curs_set(0)
             curses.start_color()
             self.pad = curses.newpad(self.grid_size[0]+2, self.grid_size[1]+2)
+            self.window.addstr(0,15, 'Press Q to quit.')
             for i in range(3):
                 curses.init_pair(i+1, COLOR[i%len(COLOR)], curses.COLOR_BLACK)
 

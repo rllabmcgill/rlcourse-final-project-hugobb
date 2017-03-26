@@ -41,6 +41,8 @@ for i_episode in tqdm(range(n_episode)):
             if rendering:
                 env.window.addstr(15,0, s)
             break
+    for a in env.agents:
+        a.epsilon = max(a.epsilon-1/n_episode, 0.1)
 
 if not os.path.exists(path):
     os.makedirs(path)

@@ -16,6 +16,7 @@ path = 'results/'
 env = MultiAgent(agent=QLearning, n_agents=n_agents, n_landmarks=n_landmarks, rendering=rendering)
 for i, a in enumerate(env.agents):
     a.load(path + 'q_agent_' + str(i)+'.npy')
+    a.epsilon = 0.1
 
 for i_episode in range(n_episode):
     env.reset()

@@ -5,20 +5,16 @@ from ..agent import Agent
 COLOR = [curses.COLOR_RED, curses.COLOR_BLUE, curses.COLOR_GREEN]
 
 class MultiAgent(object):
-    def __init__(self, n_agents=2, n_landmarks=2, grid_size=(5,5), agent=Agent, rendering=False):
+    def __init__(self, agents, n_landmarks=2, grid_size=(5,5)):
         self.n_landmarks = n_landmarks
         self.p_failure = 0.1
         self.grid_size = grid_size
-        self.state_space = self.grid_size*(n_agents + n_landmarks)
-        self.action_space = ['left', 'right', 'up', 'down']
+        self.agents = agents
         self.pos_init = lambda: (np.random.randint(self.grid_size[0]), np.random.randint(self.grid_size[1]))
-        self.goals = [0,1]
-        self.agents = []
-        for i in range(n_agents):
-            a = agent(self.state_space, self.action_space, goal=self.goals[i])
-            self.agents.append(a)
+        self.window = None
 
-        if rendering:
+    def render(self, timeout=0):
+        if self.window is None:
             self.window = curses.initscr()
             curses.noecho()
             curses.cbreak()
@@ -30,7 +26,6 @@ class MultiAgent(object):
             for i in range(3):
                 curses.init_pair(i+1, COLOR[i%len(COLOR)], curses.COLOR_BLACK)
 
-    def render(self, timeout=0):
         self.window.timeout(timeout)
         self.pad.clear()
         self.pad.border()
@@ -48,8 +43,8 @@ class MultiAgent(object):
             x, y = np.random.randint(self.grid_size[0]), np.random.randint(self.grid_size[1])
             self.landmarks.append((x,y))
         for a in self.agents:
-            a.done = False
-            a.state = self.pos_init()
+            state = self.pos_init()
+            a.reset(state)
 
     def step(self, agent, action):
         reward = 0
@@ -62,17 +57,18 @@ class MultiAgent(object):
             if y > 0:
                 y = y - 1
         elif action == 'right':
-            if y < self.state_space[1]-1:
+            if y < self.grid_size[1]-1:
                 y = y + 1
         elif action == 'up':
             if x > 0:
                 x = x - 1
         elif action == 'down':
-            if x < self.state_space[0]-1:
+            if x < self.grid_size[0]-1:
                 x = x + 1
         else:
             raise ValueError()
-        agent.state = (x, y)
+        state = (x,y)
+        agent.update_state(state)
 
         if agent.state == self.landmarks[agent.goal]:
             agent.done = True

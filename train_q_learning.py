@@ -37,8 +37,6 @@ for i_episode in tqdm(range(n_episode)):
         observation = new_observation
         if all(done_all_agent):
             s = 'done in %d step.'%(t)
-            if rendering:
-                env.window.addstr(15,0, s)
             break
     epsilon = max(epsilon-1/n_episode, 0.1)
 

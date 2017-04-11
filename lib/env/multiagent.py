@@ -5,12 +5,15 @@ from ..agent import Agent
 COLOR = [curses.COLOR_RED, curses.COLOR_BLUE, curses.COLOR_GREEN]
 
 class MultiAgent(object):
-    def __init__(self, agents, n_landmarks=2, grid_size=(5,5)):
-        self.n_landmarks = n_landmarks
+    def __init__(self, action_space, n_agents, n_landmarks=2, grid_size=(5,5)):
         self.p_failure = 0.1
         self.grid_size = grid_size
-        self.agents = agents
+        self.action_space = action_space
         self.pos_init = lambda: (np.random.randint(self.grid_size[0]), np.random.randint(self.grid_size[1]))
+        self.n_landmarks = n_landmarks
+        self.n_agents = n_agents
+        self.done = [False]*n_agents
+
         self.window = None
 
     def render(self, timeout=0):
@@ -29,8 +32,8 @@ class MultiAgent(object):
         self.window.timeout(timeout)
         self.pad.clear()
         self.pad.border()
-        for i, a in enumerate(self.agents):
-            x, y = a.state
+        for i, s in enumerate(self.states):
+            x, y = s
             self.pad.addstr(x+1, y+1, 'A', curses.color_pair(i+1))
         for i, l in enumerate(self.landmarks):
             x, y = l
@@ -38,51 +41,59 @@ class MultiAgent(object):
         self.pad.refresh(0,0, 0,0, 100,100)
 
     def reset(self):
+        self.goals = np.random.choice(self.n_agents, size=self.n_agents)
         self.landmarks = []
         for i in range(self.n_landmarks):
             x, y = np.random.randint(self.grid_size[0]), np.random.randint(self.grid_size[1])
             self.landmarks.append((x,y))
-        for a in self.agents:
-            state = self.pos_init()
-            a.reset(state)
+        self.states = []
+        for i in range(self.n_agents):
+            self.states.append(self.pos_init())
+            self.done[i] = False
 
-    def step(self, agent, action):
-        reward = 0
+        observations = self.get_observation()
+        return observations
+
+    def step(self, actions):
+        reward = [0]*2
         info = None
-        if agent.done:
-            return reward, agent.done, info
+        for i in range(self.n_agents):
+            if self.done[i]:
+                continue
 
-        x,y = agent.state
-        if action == 'left':
-            if y > 0:
-                y = y - 1
-        elif action == 'right':
-            if y < self.grid_size[1]-1:
-                y = y + 1
-        elif action == 'up':
-            if x > 0:
-                x = x - 1
-        elif action == 'down':
-            if x < self.grid_size[0]-1:
-                x = x + 1
-        else:
-            raise ValueError()
-        state = (x,y)
-        agent.update_state(state)
+            action = actions[i]
+            x,y = self.states[i]
+            if action == 'left':
+                if y > 0:
+                    y = y - 1
+            elif action == 'right':
+                if y < self.grid_size[1]-1:
+                    y = y + 1
+            elif action == 'up':
+                if x > 0:
+                    x = x - 1
+            elif action == 'down':
+                if x < self.grid_size[0]-1:
+                    x = x + 1
+            else:
+                raise ValueError()
+            self.states[i] = (x,y)
 
-        if agent.state == self.landmarks[agent.goal]:
-            agent.done = True
-            reward = 1
+            if self.states[i] == self.landmarks[self.goals[i]]:
+                self.done[i] = True
+                reward[i] = 1
 
-        return reward, agent.done, info
+        observations = self.get_observation()
+        return observations, reward, self.done, info
+
 
     def get_observation(self):
-        observation = []
-        for a in self.agents:
-            observation += a.state
-        for l in self.landmarks:
-            observation += l
-        return tuple(observation)
+        observations = []
+        for i in range(self.n_agents):
+            o = self.states[i] + sum(self.landmarks, ()) + (self.goals[i],)
+            observations.append(o)
+        return observations
+
 
     def plot_policy(self, q):
         s = ''

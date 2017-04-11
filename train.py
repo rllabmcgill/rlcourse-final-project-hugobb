@@ -6,58 +6,40 @@ from lib.utils import close_window
 import os
 
 n_landmarks= 2
-n_episode = 1000000
+n_agents = 2
+n_episode = 100000
 max_episode_length = 1000
-rendering = False
 path = 'results/'
 grid_size = (5,5)
 action_space = ['left', 'right', 'up', 'down']
-epsilon = 1
+epsilon = 1.
 
-def network():
-    from lasagne.layers import InputLayer, DenseLayer
+agent1 = QLearning(action_space, grid_size*(1 + n_landmarks) + (2,))
+agent2 = QLearning(action_space, grid_size*(1 + n_landmarks) + (2,))
+agents = [agent1, agent2]
 
-    l_in = InputLayer(shape=(None, 2*(n_landmarks+2)))
-    l_dense1 = DenseLayer(l_in, 128)
-    #l_dense2 = DenseLayer(l_dense1, 128)
-    l_out = DenseLayer(l_dense1, len(action_space), nonlinearity=None)
-
-    return l_out
-
-agent1 = DeepQAgent(action_space, network(), goal=0)
-agent2 = DeepQAgent(action_space, network(), goal=1)
-
-env = MultiAgent([agent1, agent2], grid_size=grid_size, n_landmarks=n_landmarks)
+env = MultiAgent(action_space, n_agents, grid_size=grid_size, n_landmarks=n_landmarks)
 
 for i_episode in tqdm(range(n_episode)):
-    env.reset()
-    observation = env.get_observation()
+    observations = env.reset()
     for t in range(max_episode_length):
-        if rendering:
-            env.render()
-            c = env.window.getch()
-            if c == ord('q'):
-                rendering=False
-                close_window(env.window)
-        done_all_agent = []
-        reward_all_agent = []
-        action_all_agent = []
-        for a in env.agents:
-            action = a.get_action(observation, epsilon)
-            reward, done, info = env.step(a, action)
-            action_all_agent.append(action)
-            reward_all_agent.append(reward)
-            done_all_agent.append(done)
-        new_observation = env.get_observation()
-        for i, a in enumerate(env.agents):
-            a.update_q(observation, action_all_agent[i], new_observation, reward_all_agent[i], done_all_agent[i])
-        observation = new_observation
-        if all(done_all_agent):
+        actions = []
+        for i, a in enumerate(agents):
+            action = a.get_action(observations[i], epsilon)
+            actions.append(action)
+        new_observations, reward, done, info = env.step(actions)
+        for i, a in enumerate(agents):
+            a.update_q(observations[i], actions[i], new_observations[i], reward[i])
+        observations = new_observations
+        if all(done):
             s = 'done in %d step.'%(t)
-            if rendering:
-                env.window.addstr(15,0, s)
             break
-    epsilon = max(epsilon-1/n_episode, 0.1)
+    epsilon = max(epsilon-1./n_episode, 0.1)
 
 if not os.path.exists(path):
     os.makedirs(path)
+
+for i, a in enumerate(agents):
+    a.save(path + 'q_agent_' + str(i))
+q = agents[0].q[:,:,4,4,4,4,0]
+env.plot_policy(q)

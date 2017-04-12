@@ -41,7 +41,7 @@ class MultiAgent(object):
         self.pad.refresh(0,0, 0,0, 100,100)
 
     def reset(self):
-        self.goals = np.random.choice(self.n_agents, size=self.n_agents)
+        self.goals = np.random.choice(self.n_landmarks, size=self.n_agents)
         self.landmarks = []
         for i in range(self.n_landmarks):
             x, y = np.random.randint(self.grid_size[0]), np.random.randint(self.grid_size[1])

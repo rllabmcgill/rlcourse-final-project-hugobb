@@ -34,3 +34,9 @@ class ExperienceReplay(object):
         else:
             exp = self.exp
         return exp[-size:]
+
+    def __getstate__(self):
+        return (self.exp, self.maxlen)
+
+    def __setstate__(self, s):
+        self.exp, self.maxlen = s

@@ -42,7 +42,7 @@ parser.add_argument('--lr', dest='lr', type=float,default=0.0003,
                     help='learning rate')
 parser.add_argument('--gamma', dest='gamma', type=float,default=0.999,
                     help='discounting factor')
-parser.add_argument('--algo', dest='algo', type=str, default='rpg',
+parser.add_argument('--algo', dest='algo', type=str, default='rpg_baseline_rec',
                     help='either "random", "rpg" or "rpg_baseline_rec"')
 
 args = parser.parse_args()
@@ -130,7 +130,12 @@ preproc_rewards = lambda R: [params['reward_map'][r] for r in R]
 #reward_counts = np.zeros((n_episode, n_agents))
 episode_len = np.ones((n_episode, n_agents)) * -1
 
+save = lambda obj, fname: pickle.dump(obj, open(model_dir + "/" + fname + ".p", "w"))
 
+def save_json(data, json_filename):
+    with open(model_dir + "/" + json_filename + ".json", "w") as f:
+        f.write(json.dumps(data, indent=4))
+ 
 for i_episode in tqdm(range(n_episode)):
     observations = env.reset()
     observations = preproc_observations(observations, 0)
@@ -148,23 +153,25 @@ for i_episode in tqdm(range(n_episode)):
             action = a.sample_action(observations[i], r_t[i])
             actions.append(action)
             actions_env.append(postproc_action(action))
-        new_observations, r_t, done, info = env.step(actions_env)
-        r_t = preproc_rewards(r_t)
+        new_observations, r_t_1, done, info = env.step(actions_env)
+        r_t_1 = preproc_rewards(r_t_1)
         #print "rew:", r_t_1
         new_observations = preproc_observations(new_observations, t)
         for i, a in enumerate(agents):
             # TODO: if t==0: continue?
-            if done[i] and episode_len[i_episode, i] > 0 and episode_len[i_episode, i] <= t - 1:
+            if done[i] and 0 < episode_len[i_episode, i] <= t-2:
                 continue
             elif done[i] and episode_len[i_episode, i] < 0:
                 episode_len[i_episode, i] = t
+                # after that, we want to do enough updates so that r_t_1 is used
                 #print "done at time", t, "agent", i
             a.update(observations[i], actions[i], new_observations[i], r_t[i], done[i])
             #print "ep:", i_episode, " t:", t, " agent", i, " rew:", r_t[i], " done:", done[i]
-        if all([done[i] and 0 <= episode_len[i_episode, i] <= t-1 for i in range(n_agents)]):
+        if all([done[i] and 0 < episode_len[i_episode, i] <= t-2 for i in range(n_agents)]):
             #print "all done at time", t
             break
         observations = new_observations
+        r_t = r_t_1
             
     for i in range(n_agents):
         if episode_len[i_episode, i] < 0:
@@ -174,18 +181,18 @@ for i_episode in tqdm(range(n_episode)):
         #reward_counts[i_episode, i_agent] /= float(t+1)
         # divide by 0 should not happen: problem in env
     if i_episode%freq_print == 0:
-        
         #print "from", i_episode-freq_print, "to", i_episode, ";", reward_counts.shape
         #print reward_counts[i_episode-freq_print:i_episode,:].mean(axis=0)
         print episode_len[i_episode-freq_print:i_episode,:].mean(axis=0)
+    if i_episode%2000 == 0:
+        try:
+            for i, a in enumerate(agents):
+                filename = "debug_infos_a" + str(i) + "_e" + str(i_episode) + ".p"
+                save(a.get_debug_info(), filename)
+        except:
+            pass
 
-
-save = lambda obj, fname: pickle.dump(obj, open(model_dir + "/" + fname + ".p", "w"))
-
-def save_json(data, json_filename):
-    with open(model_dir + "/" + json_filename + ".json", "w") as f:
-        f.write(json.dumps(data, indent=4))
-        
+       
 save_json(params, "params")
 save(episode_len, "episode_len")
 for i, a in enumerate(agents):

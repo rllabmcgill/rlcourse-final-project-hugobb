@@ -68,7 +68,7 @@ class RPGRecurrentBaseline():
     def _process_history(self, H):
         """
         from a list of trajectory [h_1, h_2, ...]
-        where h_i=[o_1, r_1, A_1, a_1, o_2, r_2, ..., A_N, a_N]
+        where h_i=[o_1, r_1, a_1, o_2, r_2, ..., a_N]
 
         outputs (a, X, Y, mask):
         a: ndarray of shape (bs, L) of type int64
@@ -95,9 +95,9 @@ class RPGRecurrentBaseline():
             r_i = np.zeros((L), dtype=floatX)
             r_i[:l] = np.asarray([s[1] for s in h])
             R_i = np.zeros((L), dtype=floatX)
-            R_i[l-1] = r_i[l-1]
+            R_i[l-1] = 0#r_i[l-1]
             for j in reversed(range(l-1)):
-                R_i[j] = r_i[j] + self.gamma * R_i[j+1]
+                R_i[j] = self.gamma * R_i[j+1] + r_i[j+1]
             R.append(R_i)
             r.append(r_i)
             #Y_i = np.asarray([s[2] for s in h])
@@ -136,13 +136,28 @@ class RPGRecurrentBaseline():
             X_b = self._get_baseline_features(a, X)
             bs, L, _ = X.shape
             b = self.baseline.predict(X_b).reshape((bs, L))
+            #print "a", a
+            #print "X", X
+            #print "R", R
+            #print "mask", mask
+            #print "X_b", X_b
+            #print "b", b
             grads = self.lstm.train_f(X, R, a, mask, b)
             #for g in grads:
             #    print "min, mean, max", np.min(g), "," ,np.mean(g), ",", np.max(g)
-            
+        
+    def get_debug_info(self):
+        batch = self.experience.get_batch(self.batch_size, random_order=True)
+        a, X, R, mask = self._process_history(batch)
+        X_b = self._get_baseline_features(a, X)
+        bs, L, _ = X.shape
+        b = self.baseline.predict(X_b).reshape((bs, L))
+        return [a, X, R, mask, X_b, b]
+
+        
+    
     def _train_baseline(self, n_iter=200):
         # Maybe for a start only do SGD to avoid using masks
-        print "start to train baseline"
         err = []
         for i in range(n_iter):
             batch = self.experience.get_batch(self.batch_size, random_order=True)

@@ -15,13 +15,13 @@ from utils import get_activation_function, init_weights_bias
 from collections import OrderedDict
 from lstm import LSTM
 from lasagne.nonlinearities import softmax
-from lasagne.updates import adam
+
 from experience_replay import ExperienceReplay
+from error_predictor import ErrorPredictor
 
 floatX = theano.config.floatX
 
-
-class RPG():
+class RPGRecurrentBaseline():
     def __init__(self, obs_space_size, action_space_size, n_h,
                  output_activation, gamma, lr, batch_size=128,
                  freq_train = 50, maxlen = 500, n_iter_per_train=10):
@@ -33,8 +33,9 @@ class RPG():
         n_in = obs_space_size + 1
         self.n_out = action_space_size
 
-        self.lstm = LSTM(n_in, n_h, self.n_out, 'softmax', lr, baseline='const')
+        self.lstm = LSTM(n_in, n_h, self.n_out, 'softmax', lr, baseline='matrix')
 
+        self.baseline = ErrorPredictor(obs_space_size + action_space_size, n_h, lr)
         # experience will consist of observations, probas over actions, actions
         # and rewards
         self.experience = ExperienceReplay(maxlen)
@@ -50,6 +51,7 @@ class RPG():
 
         self.current_h = []
         if self.count_episode % self.freq_train == 0 and len(self.experience) > 0:
+            print "baseline train:", self._train_baseline(self.n_iter_per_train*5)
             self._train()
         self.lstm.reset()
 
@@ -115,26 +117,39 @@ class RPG():
         a = np.asarray(a).astype('int64')
         # before: a has shape: (L, n_out, bs)
         np.swapaxes(a, 1, 2) # (L, bs, n_out)
-        np.swapaxes(a, 0, 1) # (L, bs, n_out)
-        # b = np.sum(R, axis=1) / np.sum(mask, axis=1) # vector of size bs
-        b = np.mean(R)
-        return a, X, R, mask, b
-        
+        np.swapaxes(a, 0, 1) # (bs, L, n_out)
+        return a, X, R, mask
+       
+    def _get_baseline_features(self, a, X):
+        """
+        a: actions (bs, L, n_out)
+        X: observations (bs, L, n_in)
+        """
+        return np.dstack([X[:,:,:-1], a])
+
     def _train(self):
         # Maybe for a start only do SGD to avoid using masks
 
         for i in range(self.n_iter_per_train):
             batch = self.experience.get_batch(self.batch_size, random_order=True)
-            a, X, R, mask, b = self._process_history(batch)
-            #print "some shapes:" 
-            #print "X:", X
-            #print "R:", R
-            #print "mask:", mask
-            #print "a:", a
-            grads = self.lstm.train_f(X,R,a, mask, b)
+            a, X, R, mask = self._process_history(batch)
+            X_b = self._get_baseline_features(a, X)
+            bs, L, _ = X.shape
+            b = self.baseline.predict(X_b).reshape((bs, L))
+            grads = self.lstm.train_f(X, R, a, mask, b)
             #for g in grads:
             #    print "min, mean, max", np.min(g), "," ,np.mean(g), ",", np.max(g)
             
+    def _train_baseline(self, n_iter=200):
+        # Maybe for a start only do SGD to avoid using masks
+        print "start to train baseline"
+        err = []
+        for i in range(n_iter):
+            batch = self.experience.get_batch(self.batch_size, random_order=True)
+            a, X, R, mask = self._process_history(batch)
+            X_b = self._get_baseline_features(a, X)
+            err.append(self.baseline.train(X_b, R))
+        return np.mean(err)
             
     def sample_action(self, o, r):
         # pass obs through RNN

@@ -1,8 +1,13 @@
+#!/usr/bin/env python
+
 from lib.env import MultiAgent
 import numpy as np
 from tqdm import tqdm
-from lib.rpg_agent.rpg import RPG
 from lib.rpg_agent.random_agent import RandomAgent
+
+from lib.rpg_agent.rpg_ep import RPGRecurrentBaseline
+from lib.rpg_agent.rpg import RPG
+
 from lib.utils import close_window
 import os
 from collections import Counter
@@ -17,13 +22,13 @@ parser.add_argument('-m', dest='model_dir', type=str, required=True,
 parser.add_argument('-n', dest='n_episodes', type=int, required=True,
                     help='# episodes')
 parser.add_argument('--freq_train', dest='freq_train', type=int, 
-                    help='train every "freq_train" episodes', default=200)
+                    help='train every "freq_train" episodes', default=100)
 parser.add_argument('--bs', dest='bs', type=int, 
                     help='Batch size', default=64)
 parser.add_argument('--n_hidden', dest='n_hidden', type=int, 
                     help='n hidden units', default=8)
 parser.add_argument('--n_iter_per_train', dest='n_iter_per_train', type=int, 
-                    help='# iterations per training', default=1)
+                    help='# iterations per training', default=10)
 parser.add_argument('--max_episode_len', dest='max_episode_len', type=int,
                     help='max episode length', default=50)
 parser.add_argument('--n_agents', dest='n_agents', type=int,
@@ -32,14 +37,13 @@ parser.add_argument('--n_landmarks', dest='n_landmarks', type=int,
                     help='# landmarks', default=2)
 parser.add_argument('--exp_replay_size', dest='experience_memory', type=int,
                     help='# of trajectories stored into exp replay memory',
-                    default=2000)
-
-parser.add_argument('--lr', dest='lr', type=float,default=0.001,
+                    default=5000)
+parser.add_argument('--lr', dest='lr', type=float,default=0.0003,
                     help='learning rate')
 parser.add_argument('--gamma', dest='gamma', type=float,default=0.999,
                     help='discounting factor')
 parser.add_argument('--algo', dest='algo', type=str, default='rpg',
-                    help='either "rpg" or "random"')
+                    help='either "random", "rpg" or "rpg_baseline_rec"')
 
 args = parser.parse_args()
 
@@ -94,6 +98,9 @@ action_map = {0: 'left',
 obs_space_size = 2*n_landmarks + 1 + 1
 if args.algo=='rpg':
     agents = [RPG(obs_space_size, len(action_space), hid_size, 'softmax', gamma, lr, bs,
+              freq_train, experience_memory, n_iter_per_train) for _ in range(n_agents)]
+elif args.algo=='rpg_baseline_rec':
+    agents = [RPGRecurrentBaseline(obs_space_size, len(action_space), hid_size, 'softmax', gamma, lr, bs,
               freq_train, experience_memory, n_iter_per_train) for _ in range(n_agents)]
 elif args.algo=='random':
     agents = [RandomAgent(len(action_space)) for _ in range(n_agents)]

@@ -18,13 +18,12 @@ from theano.tensor.extra_ops import to_one_hot
 floatX = theano.config.floatX
 
 class LSTM():
-    def __init__(self, n_in, n_h, n_out, output_activation, lr, optimizer='adam'):
-                
+    def __init__(self, n_in, n_h, n_out, output_activation, lr, baseline, optimizer='adam'):
         """
-        n: dim of data
-        n_h: size of hidden state
+        n_in, n_h, n_out: dim of in, hidden, output
         output_activation: 'softmax', 'sigmoid', ...
         lr: learning rate
+        baseline: either 'const', 'matrix'
         """
         self.h_0 = shared(np.random.uniform(size=(n_h)), name='h_0')
         self.c = shared(np.zeros(n_h), name='c')
@@ -108,24 +107,20 @@ class LSTM():
         
         R = T.dmatrix('R') # matrix of empirical returns, shape=(bs, l)
         mask = T.dmatrix('mask') # mask, shape=(bs, l)
-        b = T.scalar('b') # baseline
+        #b = T.dvector('b') # baseline
+        if baseline == 'const':
+            b = T.dscalar('b')
+        elif baseline =='matrix':
+            b = T.dmatrix('b') # shape (bs,l)
 
-        estimate = {}#A: one_hot_a - 1/(T.sum(T.exp(A)))}
         gradients = []
-
-        # A shape should be (L,bs,n_out)
-        C = A[T.arange(A.shape[0]).reshape((-1, 1)), T.arange(A.shape[1]), a.T]
-        
+        # A shape should be (L,bs,n_out), C (L,bs)
+        C = A[T.arange(A.shape[0]).reshape((-1, 1)), T.arange(A.shape[1]), a.T] 
         for p in self.params:
-            # shape A: l, bs n_out OR bs, l, n_out?
-            # shape a: l, bs
-            # shape A[a]: l, bs
-            log_grad = -T.grad(T.sum(T.log(C)*(R.T - b)*mask.T), p, known_grads=estimate) 
+            # if b is scalar: transpose doesn't matter
+            log_grad = -T.grad(T.sum(T.log(C)*(R.T - b.T)*mask.T), p) 
             print p.broadcastable, p.name
-            #if p.broadcastable[0]:
-            #    log_grad = T.addbroadcast(log_grad, 0)
             gradients.append(log_grad)
-        ###gradients = T.grad(loss, self.params, known_grads=reinforce_estimate)
 
         if optimizer == 'adam':
             updates_opt = adam(gradients, self.params, lr)
@@ -141,4 +136,3 @@ class LSTM():
 
     def reset(self):
         self.h.set_value(self.h_0.get_value())
-

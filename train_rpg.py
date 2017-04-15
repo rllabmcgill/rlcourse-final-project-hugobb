@@ -37,7 +37,7 @@ parser.add_argument('--n_landmarks', dest='n_landmarks', type=int,
                     help='# landmarks', default=2)
 parser.add_argument('--exp_replay_size', dest='experience_memory', type=int,
                     help='# of trajectories stored into exp replay memory',
-                    default=5000)
+                    default=25000)
 parser.add_argument('--lr', dest='lr', type=float,default=0.0003,
                     help='learning rate')
 parser.add_argument('--gamma', dest='gamma', type=float,default=0.999,
@@ -79,13 +79,23 @@ if not os.path.exists(model_dir):
     os.makedirs(model_dir)
 
 grid_size = (5,5)
-params['reward_map'] = {0: -0.2,
-                        1: 1}
+#params['reward_map'] = {0: -0.2,
+#                        1: 1}
+#params['obs_map'] = {0: -0.5,
+#           1: -0.25,
+#           2: 0.,
+#           3: 0.25,
+#           4: 0.5}
+
+params['reward_map'] = {0: -1.,
+                        1: 0.}
 params['obs_map'] = {0: -0.5,
            1: -0.25,
            2: 0.,
            3: 0.25,
            4: 0.5}
+
+
 
 freq_print = 250
 
@@ -95,7 +105,7 @@ action_map = {0: 'left',
               2: 'up',
               3: 'down'}
 
-obs_space_size = 2*n_landmarks + 1 + 1
+obs_space_size = 2 + 2*n_landmarks + 1 + 1
 if args.algo=='rpg':
     agents = [RPG(obs_space_size, len(action_space), hid_size, 'softmax', gamma, lr, bs,
               freq_train, experience_memory, n_iter_per_train) for _ in range(n_agents)]
@@ -114,15 +124,11 @@ def preproc_observations(O, t):
     #    return [np.zeros(obs_space_size) for _ in O]
     preproc_O = []
     for obs in O:
-        preproc_obs = [params['obs_map'][o] for o in obs[:-1]]
-        preproc_obs.append(obs[-1])
+        preproc_obs = [params['obs_map'][o] for o in obs]
         preproc_obs.append(1) # flag used to indicate that we are actually giving the 
         # positions and not zeroing out everything
         preproc_obs = np.asarray(preproc_obs)
-        # TODO: try 
-        for i in range(len(O)):
-            preproc_obs[2+i*2:2+(i+1)*2] -= preproc_obs[:2]
-        preproc_O.append(preproc_obs[2:])
+        preproc_O.append(preproc_obs)
     return preproc_O
 
 postproc_action = lambda a: action_map[int(a)]

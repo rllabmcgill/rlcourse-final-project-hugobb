@@ -23,7 +23,7 @@ class ExperienceReplay(object):
     def __len__(self):
         return len(self.exp)
 
-    def get_batch(self, size, random_order=False):
+    def get_batch(self, size, random_order=True):
         """
         if random order: return random 
         else: return lastly inserted

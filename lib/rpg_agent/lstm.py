@@ -25,6 +25,7 @@ class LSTM():
         lr: learning rate
         baseline: either 'const', 'matrix'
         """
+        self.n_h = n_h
         self.h_0 = shared(np.random.uniform(size=(n_h)), name='h_0')
         self.c = shared(np.zeros(n_h), name='c')
         self.h = shared(np.zeros(n_h), name='h')
@@ -136,3 +137,4 @@ class LSTM():
 
     def reset(self):
         self.h.set_value(self.h_0.get_value())
+        self.c.set_value(np.zeros(self.n_h))

@@ -28,6 +28,7 @@ class RPG():
         self.gamma = gamma
         self.batch_size = batch_size
         self.n_iter_per_train = n_iter_per_train
+        self.exp_memory_size = maxlen
 
         # input of the RNN is the observations concat w/ reward
         n_in = obs_space_size + 1
@@ -104,7 +105,6 @@ class RPG():
             a_i = np.zeros((L, self.n_out))
             a_i[np.arange(l), [int(s[2]) for s in h]] = 1
 
-            # from: http://stackoverflow.com/questions/36960320/convert-a-2d-matrix-to-a-3d-one-hot-matrix-numpy
             a.append(self._pad(a_i, L))
         mask = np.asarray(mask).astype('int64')
 
@@ -116,10 +116,30 @@ class RPG():
         # before: a has shape: (L, n_out, bs)
         np.swapaxes(a, 1, 2) # (L, bs, n_out)
         np.swapaxes(a, 0, 1) # (L, bs, n_out)
-        # b = np.sum(R, axis=1) / np.sum(mask, axis=1) # vector of size bs
-        b = np.mean(R)
+        #b = np.sum(R, axis=1) / np.sum(mask, axis=1) # vector of size bs
+        b = self._compute_const_baseline()
+        #b = np.mean(R)
         return a, X, R, mask, b
-        
+
+    def _compute_const_baseline(self):
+        """compute baseline with the whole history"""
+        mask, R = [], []
+        H = self.experience.get_batch(self.exp_memory_size, random_order=False)
+        L = max([len(h) for h in H])
+        for h in H:
+            l = len(h)
+            mask.append(np.concatenate([np.ones(l), np.zeros(L-l)]))
+            r_i = np.zeros((L), dtype=floatX)
+            r_i[:l] = np.asarray([s[1] for s in h])
+            R_i = np.zeros((L), dtype=floatX)
+            R_i[l-1] = r_i[l-1]
+            for j in reversed(range(l-1)):
+                R_i[j] = r_i[j] + self.gamma * R_i[j+1]
+            R.append(R_i)
+        mask = np.asarray(mask).astype('int64')
+        R = np.asarray(R).astype(floatX)
+        return np.sum(R) / np.sum(mask)
+
     def _train(self):
         # Maybe for a start only do SGD to avoid using masks
 

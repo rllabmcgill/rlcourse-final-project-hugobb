@@ -126,12 +126,12 @@ class RPG():
             #Y.append(self._pad(Y_i, L))
             # one hot
 
-        mask = np.asarray(mask).astype('int64')
+        mask = np.asarray(mask).astype(floatX)
         X = np.asarray(X).astype(floatX)
         R = np.asarray(R).astype(floatX)
         r = np.asarray(r).astype(floatX)
 
-        a = np.asarray(a).astype('int64')
+        a = np.asarray(a).astype(floatX)
         # before: a has shape: (L, n_out, bs)
         np.swapaxes(a, 1, 2) # (L, bs, n_out)
         np.swapaxes(a, 0, 1) # (L, bs, n_out)
@@ -157,7 +157,7 @@ class RPG():
             for j in reversed(range(l-1)):
                 R_i[j] = r_i[j+1] + self.gamma * R_i[j+1]
             R.append(R_i)
-        mask = np.asarray(mask).astype('int64')
+        mask = np.asarray(mask).astype(floatX)
         R = np.asarray(R).astype(floatX)
         b = np.sum(R) / np.sum(mask)
         # alternative: mean return computed on episodes

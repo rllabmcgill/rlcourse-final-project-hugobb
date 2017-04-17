@@ -27,13 +27,15 @@ class LSTM():
         baseline: either 'const', 'matrix'
         """
         self.n_h = n_h
-        self.h_0 = shared(np.random.uniform(size=(n_h)), name='h_0')
-        self.c = shared(np.zeros(n_h), name='c')
-        self.h = shared(np.zeros(n_h), name='h')
+        h_0_val = np.random.uniform(size=(n_h)).astype(floatX)
+        self.h_0 = shared(h_0_val, name='h_0')
+        self.c = shared(np.zeros(n_h, dtype=floatX), name='c')
+        self.h = shared(np.zeros(n_h, dtype=floatX), name='h')
 
         # i, f, o gate go together as they are sigmoided
         iW, ib = init_weights_bias((n_in, 3*n_h), 'sigmoid')
         iR, _ = init_weights_bias((n_h, 3*n_h), 'sigmoid')
+        print iW.dtype, ib.dtype, iR.dtype
         W_ifo = shared(iW, name='W_ifo') 
         R_ifo = shared(iR, name='R_ifo') 
         b_ifo = shared(ib, name='b_ifo', broadcastable=(True, False))
@@ -93,7 +95,7 @@ class LSTM():
         L = X.shape[1]
         outputs_eval = [None,
                         None,
-                        T.zeros((batch_size, n_h)),
+                        T.zeros((batch_size, n_h), dtype=floatX),
                         T.alloc(self.h_0, batch_size, n_h)]
         returned, updates = scan(fn = step,
                             sequences = X.dimshuffle(1,0,2), # (L, bs, n_in)
@@ -107,13 +109,13 @@ class LSTM():
         #loss = (mask.reshape((L*batch_size,)) * CE).sum() / mask.sum()
         # TODO: mask
         
-        R = T.dmatrix('R') # matrix of empirical returns, shape=(bs, l)
-        mask = T.dmatrix('mask') # mask, shape=(bs, l)
-        #b = T.dvector('b') # baseline
+        R = T.matrix('R', dtype=floatX) # matrix of empirical returns, shape=(bs, l)
+        mask = T.matrix('mask', dtype=floatX) # mask, shape=(bs, l)
+        #b = T.dvector('b', dtype=floatX) # baseline
         if baseline == 'const':
-            b = T.dscalar('b')
+            b = T.scalar('b', dtype=floatX)
         elif baseline =='matrix':
-            b = T.dmatrix('b') # shape (bs,l)
+            b = T.matrix('b', dtype=floatX) # shape (bs,l)
 
         gradients = []
         # A shape should be (L,bs,n_out), C (L,bs)
@@ -142,4 +144,4 @@ class LSTM():
 
     def reset(self):
         self.h.set_value(self.h_0.get_value())
-        self.c.set_value(np.zeros(self.n_h))
+        self.c.set_value(np.zeros(self.n_h, dtype=floatX))

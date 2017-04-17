@@ -22,7 +22,6 @@ from experience_replay import ExperienceReplay
 
 floatX = theano.config.floatX
 
-
 class RPG():
     def __init__(self, obs_space_size, action_space_size, n_h,
                  output_activation, gamma, lr, batch_size=128,
@@ -97,9 +96,9 @@ class RPG():
                 continue
             # compute returns. Have to take into account the last step 
             # where done is true.
-            r_i = np.zeros((L), dtype=floatX)
+            r_i = np.zeros(L)
             r_i[:l] = np.asarray([s[1] for s in h])
-            R_i = np.zeros((L), dtype=floatX)
+            R_i = np.zeros(L)
             R_i[l-1] = 0#r_i[l-1]
             for j in reversed(range(l-1)):
                 R_i[j] = r_i[j+1] + self.gamma * R_i[j+1]
@@ -150,9 +149,9 @@ class RPG():
             if l == L:
                 continue
             mask.append(np.concatenate([np.ones(l-1), np.zeros(L-l+1)]))
-            r_i = np.zeros((L), dtype=floatX)
+            r_i = np.zeros(L)
             r_i[:l] = np.asarray([s[1] for s in h])
-            R_i = np.zeros((L), dtype=floatX)
+            R_i = np.zeros(L)
             R_i[l-1] = 0#r_i[l-1]
             for j in reversed(range(l-1)):
                 R_i[j] = r_i[j+1] + self.gamma * R_i[j+1]
@@ -183,9 +182,9 @@ class RPG():
             
     def sample_action(self, o_t, r_t, a_t_1):
         # pass obs through RNN
-        oh_a = np.zeros(self.n_out)
+        oh_a = np.zeros(self.n_out, dtype=floatX)
         oh_a[a_t_1] = 1
-        x = np.concatenate([o_t, np.asarray([r_t]), oh_a])
+        x = np.concatenate([o_t, np.asarray([r_t]), oh_a]).astype(floatX)
         return self.lstm.step(x)
     
     def get_debug_info(self):

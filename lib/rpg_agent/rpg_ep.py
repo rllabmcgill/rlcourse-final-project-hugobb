@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from __future__ import division
+
 import theano
 import theano.tensor as T
 from theano import shared
@@ -15,7 +17,6 @@ from utils import get_activation_function, init_weights_bias
 from collections import OrderedDict
 from lstm import LSTM
 from lasagne.nonlinearities import softmax
-
 from experience_replay import ExperienceReplay
 from error_predictor import ErrorPredictor
 
@@ -33,9 +34,8 @@ class RPGRecurrentBaseline():
         n_in = obs_space_size + 1
         self.n_out = action_space_size
 
-        self.lstm = LSTM(n_in, n_h, self.n_out, 'softmax', lr, baseline='matrix')
-
-        self.baseline = ErrorPredictor(obs_space_size + action_space_size, n_h, lr)
+        self.lstm = LSTM(n_in + self.n_out, n_h, self.n_out, 'softmax', lr, baseline='matrix')
+        self.baseline = ErrorPredictor(obs_space_size + action_space_size, n_h, 0.001)
         # experience will consist of observations, probas over actions, actions
         # and rewards
         self.experience = ExperienceReplay(maxlen)
@@ -51,8 +51,8 @@ class RPGRecurrentBaseline():
 
         self.current_h = []
         if self.count_episode % self.freq_train == 0 and len(self.experience) > 0:
-            print "baseline train:", self._train_baseline(self.n_iter_per_train*5)
             self._train()
+            self._train_baseline(self.n_iter_per_train*2)
         self.lstm.reset()
 
     def _pad(self, d, L):
@@ -89,16 +89,20 @@ class RPGRecurrentBaseline():
         # let's fill X, Y and mask trajectory after trajectory
         for h in H:
             l = len(h)
-            mask.append(np.concatenate([np.ones(l), np.zeros(L-l)]))
+            if l==L:
+                continue
+            mask.append(np.concatenate([np.ones(l-1), np.zeros(L-l+1)]))
             X_i = np.asarray([np.concatenate([s[0], np.asarray([s[1]])]) for s in h])
             X.append(self._pad(X_i, L))
             r_i = np.zeros((L), dtype=floatX)
             r_i[:l] = np.asarray([s[1] for s in h])
             R_i = np.zeros((L), dtype=floatX)
-            R_i[l-1] = 0#r_i[l-1]
-            for j in reversed(range(l-1)):
-                R_i[j] = self.gamma * R_i[j+1] + r_i[j+1]
+            R_i[l-2] = r_i[l-1]
+            for j in reversed(range(l-2)):
+                R_i[j] = r_i[j+1] + self.gamma * R_i[j+1]
             R.append(R_i)
+            #print "R_i:", R_i
+            #print "r_i:", r_i
             r.append(r_i)
             #Y_i = np.asarray([s[2] for s in h])
             #Y.append(self._pad(Y_i, L))
@@ -108,13 +112,11 @@ class RPGRecurrentBaseline():
 
             # from: http://stackoverflow.com/questions/36960320/convert-a-2d-matrix-to-a-3d-one-hot-matrix-numpy
             a.append(self._pad(a_i, L))
-        mask = np.asarray(mask).astype('int64')
-
+        mask = np.asarray(mask).astype(floatX)
         X = np.asarray(X).astype(floatX)
         R = np.asarray(R).astype(floatX)
         r = np.asarray(r).astype(floatX)
-
-        a = np.asarray(a).astype('int64')
+        a = np.asarray(a).astype(floatX)
         # before: a has shape: (L, n_out, bs)
         np.swapaxes(a, 1, 2) # (L, bs, n_out)
         np.swapaxes(a, 0, 1) # (bs, L, n_out)
@@ -134,14 +136,15 @@ class RPGRecurrentBaseline():
             batch = self.experience.get_batch(self.batch_size, random_order=True)
             a, X, R, mask = self._process_history(batch)
             X_b = self._get_baseline_features(a, X)
+
+            X = np.dstack([X, a])
             bs, L, _ = X.shape
             b = self.baseline.predict(X_b).reshape((bs, L))
-            #print "a", a
-            #print "X", X
-            #print "R", R
-            #print "mask", mask
-            #print "X_b", X_b
-            #print "b", b
+            #print "a", a.shape
+            #print "X", X.shape
+            #print "R", R.shape
+            #print "mask", mask.shape
+            #print "X_b", X_b.shape
             grads = self.lstm.train_f(X, R, a, mask, b)
             #for g in grads:
             #    print "min, mean, max", np.min(g), "," ,np.mean(g), ",", np.max(g)
@@ -152,11 +155,10 @@ class RPGRecurrentBaseline():
         X_b = self._get_baseline_features(a, X)
         bs, L, _ = X.shape
         b = self.baseline.predict(X_b).reshape((bs, L))
+        X = np.dstack([X, a])
         return [a, X, R, mask, X_b, b]
 
-        
-    
-    def _train_baseline(self, n_iter=200):
+    def _train_baseline(self, n_iter=50):
         # Maybe for a start only do SGD to avoid using masks
         err = []
         for i in range(n_iter):
@@ -164,11 +166,17 @@ class RPGRecurrentBaseline():
             a, X, R, mask = self._process_history(batch)
             X_b = self._get_baseline_features(a, X)
             err.append(self.baseline.train(X_b, R))
+        #if np.mean(err) < 10.0:
+        #    break
+        print "training baseline...", np.mean(err)
         return np.mean(err)
             
-    def sample_action(self, o, r):
-        # pass obs through RNN
-        a = self.lstm.step(o, r)
+    def sample_action(self, o_t, r_t, a_t_1):
+        oh_a = np.zeros(self.n_out, dtype=floatX)
+        oh_a[a_t_1] = 1
+        x = np.concatenate([o_t, np.asarray([r_t]), oh_a]).astype(floatX)
+        #print "sample action: oh, ot, x", oh_a.shape, o_t.shape, x.shape
+        a = self.lstm.step(x)
         return a
     
     def update(self, o_t, a_t, o_t_1, r_t, done):
@@ -176,6 +184,7 @@ class RPGRecurrentBaseline():
         # TODO: maybe experience should directly be stored as an ndarray?
         # we don't want the preprocessing to occur at train time as we 
         # access more than we store. 
+        # discard done
         h = (o_t, r_t, a_t)
         self.current_h.append(h)
         return None

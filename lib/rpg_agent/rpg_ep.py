@@ -50,7 +50,7 @@ class RPGRecurrentBaseline():
             self.experience.append(self.current_h)
 
         self.current_h = []
-        if self.count_episode % self.freq_train == 0 and len(self.experience) > 0:
+        if self.count_episode % self.freq_train == 0 and len(self.experience) > 1000:
             self._train()
             self._train_baseline(self.n_iter_per_train*2)
         self.lstm.reset()
@@ -89,8 +89,8 @@ class RPGRecurrentBaseline():
         # let's fill X, Y and mask trajectory after trajectory
         for h in H:
             l = len(h)
-            if l==L:
-                continue
+            #if l==L:
+            #    continue
             mask.append(np.concatenate([np.ones(l-1), np.zeros(L-l+1)]))
             X_i = np.asarray([np.concatenate([s[0], np.asarray([s[1]])]) for s in h])
             X.append(self._pad(X_i, L))

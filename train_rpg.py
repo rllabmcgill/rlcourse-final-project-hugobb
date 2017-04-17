@@ -101,7 +101,7 @@ params['obs_map'] = {0: -1.,
 
 
 
-freq_print = 250
+freq_print = 500
 
 action_space = ['left', 'right', 'up', 'down']
 action_map = {0: 'left',
@@ -115,6 +115,7 @@ if args.algo=='rpg':
     agents = [RPG(obs_space_size + len(action_space), len(action_space), hid_size, 'softmax', gamma, lr, bs,
               freq_train, experience_memory, n_iter_per_train) for _ in range(n_agents)]
 elif args.algo=='rpg_baseline_rec':
+    print "Baseline computed by a LSTM"
     agents = [RPGRecurrentBaseline(obs_space_size, len(action_space), hid_size, 'softmax', gamma, lr, bs,
               freq_train, experience_memory, n_iter_per_train) for _ in range(n_agents)]
 elif args.algo=='random':

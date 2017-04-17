@@ -31,6 +31,7 @@ class RPGRecurrentBaseline():
         self.n_iter_per_train = n_iter_per_train
 
         # input of the RNN is the observations concat w/ reward
+        self.obs_space_size = obs_space_size
         n_in = obs_space_size + 1
         self.n_out = action_space_size
 
@@ -50,7 +51,7 @@ class RPGRecurrentBaseline():
             self.experience.append(self.current_h)
 
         self.current_h = []
-        if self.count_episode % self.freq_train == 0 and len(self.experience) > 1000:
+        if self.count_episode % self.freq_train == 0:
             self._train()
             self._train_baseline(self.n_iter_per_train*2)
         self.lstm.reset()
@@ -92,26 +93,29 @@ class RPGRecurrentBaseline():
             #if l==L:
             #    continue
             mask.append(np.concatenate([np.ones(l-1), np.zeros(L-l+1)]))
-            X_i = np.asarray([np.concatenate([s[0], np.asarray([s[1]])]) for s in h])
-            X.append(self._pad(X_i, L))
-            r_i = np.zeros((L), dtype=floatX)
+
+            r_i = np.zeros(L)
             r_i[:l] = np.asarray([s[1] for s in h])
-            R_i = np.zeros((L), dtype=floatX)
+            R_i = np.zeros(L)
             R_i[l-2] = r_i[l-1]
             for j in reversed(range(l-2)):
                 R_i[j] = r_i[j+1] + self.gamma * R_i[j+1]
             R.append(R_i)
-            #print "R_i:", R_i
-            #print "r_i:", r_i
             r.append(r_i)
-            #Y_i = np.asarray([s[2] for s in h])
-            #Y.append(self._pad(Y_i, L))
-            # one hot
+
             a_i = np.zeros((L, self.n_out))
             a_i[np.arange(l), [int(s[2]) for s in h]] = 1
-
-            # from: http://stackoverflow.com/questions/36960320/convert-a-2d-matrix-to-a-3d-one-hot-matrix-numpy
             a.append(self._pad(a_i, L))
+
+            X_i = np.hstack([h[0][0], np.asarray(h[0][1]), np.zeros(self.n_out)])
+            if l>1:
+                X_i_rest = np.vstack([np.hstack([s[0], np.asarray([s[1]]), a_i[i-1]]) for i, s in enumerate(h[1:])])
+                #print "Xirest", X_i_rest.shape
+                X_i = np.vstack([X_i, X_i_rest])
+            else:
+                X_i = X_i.reshape((1,-1))
+
+            X.append(self._pad(X_i, L))
         mask = np.asarray(mask).astype(floatX)
         X = np.asarray(X).astype(floatX)
         R = np.asarray(R).astype(floatX)
@@ -122,12 +126,12 @@ class RPGRecurrentBaseline():
         np.swapaxes(a, 0, 1) # (bs, L, n_out)
         return a, X, R, mask
        
-    def _get_baseline_features(self, a, X):
+    def _get_baseline_features(self, X):
         """
-        a: actions (bs, L, n_out)
-        X: observations (bs, L, n_in)
+        X: observations (bs, L, n_in + 1 + n_out)
         """
-        return np.dstack([X[:,:,:-1], a])
+        # remove reward from X
+        return np.dstack([X[:,:,:self.obs_space_size], X[:,:,self.obs_space_size+1:]])
 
     def _train(self):
         # Maybe for a start only do SGD to avoid using masks
@@ -135,9 +139,7 @@ class RPGRecurrentBaseline():
         for i in range(self.n_iter_per_train):
             batch = self.experience.get_batch(self.batch_size, random_order=True)
             a, X, R, mask = self._process_history(batch)
-            X_b = self._get_baseline_features(a, X)
-
-            X = np.dstack([X, a])
+            X_b = self._get_baseline_features(X)
             bs, L, _ = X.shape
             b = self.baseline.predict(X_b).reshape((bs, L))
             #print "a", a.shape
@@ -145,6 +147,7 @@ class RPGRecurrentBaseline():
             #print "R", R.shape
             #print "mask", mask.shape
             #print "X_b", X_b.shape
+            #print "a", a.shape
             grads = self.lstm.train_f(X, R, a, mask, b)
             #for g in grads:
             #    print "min, mean, max", np.min(g), "," ,np.mean(g), ",", np.max(g)
@@ -152,7 +155,7 @@ class RPGRecurrentBaseline():
     def get_debug_info(self):
         batch = self.experience.get_batch(self.batch_size, random_order=True)
         a, X, R, mask = self._process_history(batch)
-        X_b = self._get_baseline_features(a, X)
+        X_b = self._get_baseline_features(X)
         bs, L, _ = X.shape
         b = self.baseline.predict(X_b).reshape((bs, L))
         X = np.dstack([X, a])
@@ -164,7 +167,7 @@ class RPGRecurrentBaseline():
         for i in range(n_iter):
             batch = self.experience.get_batch(self.batch_size, random_order=True)
             a, X, R, mask = self._process_history(batch)
-            X_b = self._get_baseline_features(a, X)
+            X_b = self._get_baseline_features(X)
             err.append(self.baseline.train(X_b, R))
         #if np.mean(err) < 10.0:
         #    break

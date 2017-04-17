@@ -54,7 +54,6 @@ class RPG():
         if self.count_episode % self.freq_train == 0 and len(self.experience) > 0:
             self._train()
         self.lstm.reset()
-        self.current_done = False
 
     def _pad(self, d, L):
         """
@@ -195,9 +194,6 @@ class RPG():
         # TODO: maybe experience should directly be stored as an ndarray?
         # we don't want the preprocessing to occur at train time as we 
         # access more than we store. 
-        assert(not self.current_done)
-        if done:
-            self.current_done = True
         h = (o_t, r_t, a_t)
         self.current_h.append(h)
         return None

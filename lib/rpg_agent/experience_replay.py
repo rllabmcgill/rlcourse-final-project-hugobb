@@ -29,11 +29,10 @@ class ExperienceReplay(object):
         else: return lastly inserted
         """
         if random_order:
-            exp = list(self.exp) # copy
-            shuffle(exp)
+            idx = np.random.choice(len(self.exp), size, replace=False)
+            return [self.exp[i] for i in idx]
         else:
-            exp = self.exp
-        return exp[-size:]
+            return self.exp[-size:]
 
     def __getstate__(self):
         return (self.exp, self.maxlen)

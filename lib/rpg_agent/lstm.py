@@ -1,10 +1,12 @@
+from __future__ import division
+
 import theano
 import theano.tensor as T
 from theano import shared
 import numpy as np
 from theano.tensor.nnet import sigmoid
 from theano import scan, shared, function
-from lasagne.updates import adam
+from lasagne.updates import adam, sgd, total_norm_constraint
 import pickle
 from theano.compile.nanguardmode import NanGuardMode
 from theano.tensor.shared_randomstreams import RandomStreams
@@ -12,7 +14,6 @@ from theano.gradient import disconnected_grad
 from utils import get_activation_function, init_weights_bias
 from collections import OrderedDict 
 from theano.tensor.shared_randomstreams import RandomStreams
-#from smorms3 import SMORMS3
 from theano.tensor.extra_ops import to_one_hot
 
 floatX = theano.config.floatX
@@ -119,21 +120,25 @@ class LSTM():
         C = A[T.arange(A.shape[0]).reshape((-1, 1)), T.arange(A.shape[1]), a.T] 
         for p in self.params:
             # if b is scalar: transpose doesn't matter
-            log_grad = -T.grad(T.sum(T.log(C)*(R.T - b.T)*mask.T), p) 
+            grad_log = -T.grad(T.sum(T.log(C)*(R.T - b.T)*mask.T), p) / T.sum(mask)
             print p.broadcastable, p.name
-            gradients.append(log_grad)
+            gradients.append(grad_log)
 
+        gradients = total_norm_constraint(gradients, 5)
         if optimizer == 'adam':
             updates_opt = adam(gradients, self.params, lr)
+        elif optimizer == 'sgd':
+            updates_opt = sgd(gradients, self.params, lr)
         else:
             raise NotImplementedError
         #for k in updates_opt.keys():
         #    print "update:", k.name, k
         #print len(updates+updates_opt)
         self.train_f = function([X, R, one_hot_a, mask, b], gradients, updates=updates+updates_opt)
+        self.reset()
 
-    def step(self, o_t, r_t):
-        return self.step_f(np.concatenate([o_t, np.asarray([r_t])]))
+    def step(self, x):
+        return self.step_f(x)
 
     def reset(self):
         self.h.set_value(self.h_0.get_value())

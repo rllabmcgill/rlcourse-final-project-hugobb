@@ -30,7 +30,7 @@ parser.add_argument('--n_hidden', dest='n_hidden', type=int,
 parser.add_argument('--n_iter_per_train', dest='n_iter_per_train', type=int, 
                     help='# iterations per training', default=10)
 parser.add_argument('--max_episode_len', dest='max_episode_len', type=int,
-                    help='max episode length', default=50)
+                    help='max episode length', default=300)
 parser.add_argument('--n_agents', dest='n_agents', type=int,
                     help='# agents', default=2)
 parser.add_argument('--n_landmarks', dest='n_landmarks', type=int,
@@ -44,6 +44,9 @@ parser.add_argument('--gamma', dest='gamma', type=float,default=0.999,
                     help='discounting factor')
 parser.add_argument('--algo', dest='algo', type=str, default='rpg_baseline_rec',
                     help='either "random", "rpg" or "rpg_baseline_rec"')
+parser.add_argument('--obs', dest='observability', type=str, 
+                    default='partial', help='either "partial", "full"')
+
 
 args = parser.parse_args()
 
@@ -64,6 +67,7 @@ freq_train = args.freq_train
 hid_size = args.n_hidden
 experience_memory = args.experience_memory
 n_iter_per_train = args.n_iter_per_train
+partial_observability = args.observability == 'partial'
 
 params = copy.deepcopy(vars(args)) # namespace to dict
 del params['model_dir']
@@ -87,13 +91,13 @@ grid_size = (5,5)
 #           3: 0.25,
 #           4: 0.5}
 
-params['reward_map'] = {0: -1.,
-                        1: 0.}
-params['obs_map'] = {0: -0.5,
-           1: -0.25,
+params['reward_map'] = {0: -1,
+                        1: 0}
+params['obs_map'] = {0: -1.,
+           1: -0.5,
            2: 0.,
-           3: 0.25,
-           4: 0.5}
+           3: 0.5,
+           4: 1.}
 
 
 
@@ -107,10 +111,11 @@ action_map = {0: 'left',
 
 obs_space_size = 2 + 2*n_landmarks + 1 + 1
 if args.algo=='rpg':
-    agents = [RPG(obs_space_size, len(action_space), hid_size, 'softmax', gamma, lr, bs,
+    print "Scalar baseline"
+    agents = [RPG(obs_space_size + len(action_space), len(action_space), hid_size, 'softmax', gamma, lr, bs,
               freq_train, experience_memory, n_iter_per_train) for _ in range(n_agents)]
 elif args.algo=='rpg_baseline_rec':
-    agents = [RPGRecurrentBaseline(obs_space_size, len(action_space), hid_size, 'softmax', gamma, lr, bs,
+    agents = [RPGRecurrentBaseline(obs_space_size + len(action_space), len(action_space), hid_size, 'softmax', gamma, lr, bs,
               freq_train, experience_memory, n_iter_per_train) for _ in range(n_agents)]
 elif args.algo=='random':
     agents = [RandomAgent(len(action_space)) for _ in range(n_agents)]
@@ -120,8 +125,8 @@ else:
 env = MultiAgent(action_space, n_agents, grid_size=grid_size, n_landmarks=n_landmarks)
 # Some preprocessing functions for RPG
 def preproc_observations(O, t):
-    #if t>1:
-    #    return [np.zeros(obs_space_size) for _ in O]
+    if t>0 and partial_observability:
+        return [np.zeros(obs_space_size) for _ in O]
     preproc_O = []
     for obs in O:
         preproc_obs = [params['obs_map'][o] for o in obs]
@@ -151,12 +156,13 @@ for i_episode in tqdm(range(n_episode)):
     r_t = [0 for _ in range(n_agents)]
     r_t = preproc_rewards(r_t)
     done = [False for _ in range(n_agents)]
+    last_actions  = [0 for _ in range(n_agents)]
     for t in range(1, max_episode_length):
         actions, actions_env = [], []
         # actions_env stores action in the env format
         for i, a in enumerate(agents): 
             # we don't care if done is true for one agent
-            action = a.sample_action(observations[i], r_t[i])
+            action = a.sample_action(observations[i], r_t[i], last_actions[i])
             actions.append(action)
             actions_env.append(postproc_action(action))
         new_observations, r_t_1, done, info = env.step(actions_env)
@@ -165,19 +171,20 @@ for i_episode in tqdm(range(n_episode)):
         new_observations = preproc_observations(new_observations, t)
         for i, a in enumerate(agents):
             # TODO: if t==0: continue?
-            if done[i] and 0 < episode_len[i_episode, i] <= t-2:
-                continue
-            elif done[i] and episode_len[i_episode, i] < 0:
+            if done[i] and episode_len[i_episode, i] < 0:
+                # in this case, we have just seen done.
+                # we want to update with this last time step.
                 episode_len[i_episode, i] = t
-                # after that, we want to do enough updates so that r_t_1 is used
-                #print "done at time", t, "agent", i
+            elif done[i]:
+                continue
             a.update(observations[i], actions[i], new_observations[i], r_t[i], done[i])
             #print "ep:", i_episode, " t:", t, " agent", i, " rew:", r_t[i], " done:", done[i]
-        if all([done[i] and 0 < episode_len[i_episode, i] <= t-2 for i in range(n_agents)]):
+        if all([done[i] for i in range(n_agents)]):# and 0 < episode_len[i_episode, i] <= t-2 for i in range(n_agents)]):
             #print "all done at time", t
             break
         observations = new_observations
         r_t = r_t_1
+        last_actions = actions
             
     for i in range(n_agents):
         if episode_len[i_episode, i] < 0:
@@ -190,13 +197,10 @@ for i_episode in tqdm(range(n_episode)):
         #print "from", i_episode-freq_print, "to", i_episode, ";", reward_counts.shape
         #print reward_counts[i_episode-freq_print:i_episode,:].mean(axis=0)
         print episode_len[i_episode-freq_print:i_episode,:].mean(axis=0)
-    if i_episode%2000 == 0:
-        try:
-            for i, a in enumerate(agents):
-                filename = "debug_infos_a" + str(i) + "_e" + str(i_episode) + ".p"
-                save(a.get_debug_info(), filename)
-        except:
-            pass
+    if i_episode%2000 == 0 and i_episode > 1:
+        for i, a in enumerate(agents):
+            filename = "debug_infos_a" + str(i) + "_e" + str(i_episode) + ".p"
+            save(a.get_debug_info(), filename)
 
        
 save_json(params, "params")

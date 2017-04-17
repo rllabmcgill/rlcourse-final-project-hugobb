@@ -48,13 +48,17 @@ class MultiAgent(object):
             self.landmarks.append((x,y))
         self.states = []
         for i in range(self.n_agents):
-            self.states.append(self.pos_init())
+            # we don't want the agent to start on a landmark.
+            start_pos = self.landmarks[0]
+            while start_pos in self.landmarks:
+                start_pos = self.pos_init()
+            self.states.append(start_pos)
             self.done[i] = False
         observations = self.get_observation()
         return observations
 
     def step(self, actions):
-        reward = [0]*2
+        reward = [0]*self.n_agents
         info = None
         for i in range(self.n_agents):
             if self.done[i]:

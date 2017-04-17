@@ -91,8 +91,8 @@ grid_size = (5,5)
 #           3: 0.25,
 #           4: 0.5}
 
-params['reward_map'] = {0: -1,
-                        1: 0}
+params['reward_map'] = {0: 0,
+                        1: 1}
 params['obs_map'] = {0: -1.,
            1: -0.5,
            2: 0.,
@@ -115,7 +115,7 @@ if args.algo=='rpg':
     agents = [RPG(obs_space_size + len(action_space), len(action_space), hid_size, 'softmax', gamma, lr, bs,
               freq_train, experience_memory, n_iter_per_train) for _ in range(n_agents)]
 elif args.algo=='rpg_baseline_rec':
-    agents = [RPGRecurrentBaseline(obs_space_size + len(action_space), len(action_space), hid_size, 'softmax', gamma, lr, bs,
+    agents = [RPGRecurrentBaseline(obs_space_size, len(action_space), hid_size, 'softmax', gamma, lr, bs,
               freq_train, experience_memory, n_iter_per_train) for _ in range(n_agents)]
 elif args.algo=='random':
     agents = [RandomAgent(len(action_space)) for _ in range(n_agents)]
@@ -175,11 +175,11 @@ for i_episode in tqdm(range(n_episode)):
                 # in this case, we have just seen done.
                 # we want to update with this last time step.
                 episode_len[i_episode, i] = t
-            elif done[i]:
+            elif done[i] and episode_len[i_episode, i] <= t-2:
                 continue
             a.update(observations[i], actions[i], new_observations[i], r_t[i], done[i])
             #print "ep:", i_episode, " t:", t, " agent", i, " rew:", r_t[i], " done:", done[i]
-        if all([done[i] for i in range(n_agents)]):# and 0 < episode_len[i_episode, i] <= t-2 for i in range(n_agents)]):
+        if all([done[i] for i in range(n_agents)]) and all([0 < episode_len[i_episode, i] <= t-2 for i in range(n_agents)]):
             #print "all done at time", t
             break
         observations = new_observations

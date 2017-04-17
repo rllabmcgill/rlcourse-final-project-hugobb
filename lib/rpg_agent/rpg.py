@@ -17,7 +17,6 @@ from utils import get_activation_function, init_weights_bias
 from collections import OrderedDict
 from lstm import LSTM
 from lasagne.nonlinearities import softmax
-from lasagne.updates import adam
 from experience_replay import ExperienceReplay
 
 floatX = theano.config.floatX
@@ -70,7 +69,7 @@ class RPG():
     def _process_history(self, H):
         """
         from a list of trajectory [h_1, h_2, ...]
-        where h_i=[o_1, r_1, A_1, a_1, o_2, r_2, ..., A_N, a_N]
+        where h_i=[o_1, r_1, a_1, o_2, r_2, ..., a_N]
 
         outputs (a, X, Y, mask):
         a: ndarray of shape (bs, L) of type int64
@@ -85,7 +84,6 @@ class RPG():
         """
         lens = [len(h) for h in H]
         L = max(lens)
-
         r, X, R, a, mask = [], [], [], [], []
         # r stores the reward, it is used to compute the baseline.
 
@@ -99,8 +97,8 @@ class RPG():
             r_i = np.zeros(L)
             r_i[:l] = np.asarray([s[1] for s in h])
             R_i = np.zeros(L)
-            R_i[l-1] = 0#r_i[l-1]
-            for j in reversed(range(l-1)):
+            R_i[l-2] = r_i[l-1]
+            for j in reversed(range(l-2)):
                 R_i[j] = r_i[j+1] + self.gamma * R_i[j+1]
             R.append(R_i)
             r.append(r_i)
@@ -114,7 +112,6 @@ class RPG():
             X_i = np.hstack([h[0][0], np.asarray(h[0][1]), np.zeros(self.n_out)])
             if l>1:
                 X_i_rest = np.vstack([np.hstack([s[0], np.asarray([s[1]]), a_i[i-1]]) for i, s in enumerate(h[1:])])
-
                 #print "Xirest", X_i_rest.shape
                 X_i = np.vstack([X_i, X_i_rest])
             else:
@@ -133,7 +130,7 @@ class RPG():
         a = np.asarray(a).astype(floatX)
         # before: a has shape: (L, n_out, bs)
         np.swapaxes(a, 1, 2) # (L, bs, n_out)
-        np.swapaxes(a, 0, 1) # (L, bs, n_out)
+        np.swapaxes(a, 0, 1) # (bs, L, n_out)
 
         return a, X, R, mask
 

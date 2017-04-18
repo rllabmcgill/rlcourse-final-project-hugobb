@@ -35,7 +35,6 @@ class LSTM():
         # i, f, o gate go together as they are sigmoided
         iW, ib = init_weights_bias((n_in, 3*n_h), 'sigmoid')
         iR, _ = init_weights_bias((n_h, 3*n_h), 'sigmoid')
-        print iW.dtype, ib.dtype, iR.dtype
         W_ifo = shared(iW, name='W_ifo') 
         R_ifo = shared(iR, name='R_ifo') 
         b_ifo = shared(ib, name='b_ifo', broadcastable=(True, False))

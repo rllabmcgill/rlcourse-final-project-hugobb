@@ -30,9 +30,24 @@ class MultiAgentCoop(object):
                                 np.mean(range(self.grid_size[1])))
         self._mean_code_lmark = np.mean(range(n_landmarks))
 
+        # the following dicts contains precomputed codes
+        self._speech_codes = self._compute_oh_code(vocab_size)
+        self._agent_codes = self._compute_oh_code(n_agents)
+        self._landmark_codes = self._compute_oh_code(n_landmarks)
+
         # start episode
         self.reset()
 
+    def _compute_oh_code(self, V):
+        """ 
+        compute a dict which maps integers from 0..V to one hot encoded vectors
+        """
+        code = {}
+        for e in range(V):
+            codeword = np.zeros(V)
+            codeword[e] = 1
+            code[e] = codeword
+        return code
 
     def _pos_init(self):
         return (np.random.randint(self.grid_size[0]),
@@ -44,7 +59,13 @@ class MultiAgentCoop(object):
 
         instantiate landmarks, agents, goals
         """
-        self.done = [False]*self.n_agents
+        self.done = False
+        self.reward = False
+        self.current_speeches = []
+        # following variable indicates whether agent has reached his goal, 
+        # i.e. whether he has made ANOTHER agent reach a landmark
+        self.already_reached = [False]*self.n_agents
+
         # self.agents_coop[3] = (1,2) means that the goal of agent #3 is to make
         # agent #1 go to landmark #2
         # some constraints on goals: writing self.agents_coop[i] = (j,k):
@@ -115,63 +136,67 @@ class MultiAgentCoop(object):
         self.agent_pos[i] = (x,y)
 
     def _get_reward_and_done(self):
-        """ compute reward and done flag for all agents """
-        done = [False]*self.n_agents
-        reward = [0] * self.n_agents
-
+        """
+        compute reward and done flag for all agents
+        The reward is given only once to an agent when he made the other agent
+        reach the goal.
+        Episode is done when all goals have been reached.
+        """
+        reward = 0
         for i in range(self.n_agents):
             target_agent, target_lmark = self.goals[i]
-            if self.agent_pos[target_agent] == self.landmarks[target_lmark]:
-                done[i]
-                return (1, True)
-            else:
-                return (0, False)
+            if (self.agent_pos[target_agent] == self.landmarks[target_lmark] and
+                not self.already_reached[i]):
+                reward += 1
+                self.already_reached[i] = True
+        done = all(self.already_reached)
+        return reward, done
 
     def step(self, actions, speeches):
         self.current_speeches = speeches
-        reward = []
-        # first, all agents move except the ones that are done
-        for i in range(self.n_agents):
-            if self.done[i]:
-                continue
-            self._move(i, actions[i])
 
-        # warning: the 2 loops matter
-        # it's important to wait for all the moves before checking for rewards
+        if not self.done:
+            for i in range(self.n_agents):
+                self._move(i, actions[i])
+
+        self.reward, self.done = self._get_reward_and_done()
+        
         observations = []
         for i in range(self.n_agents):
-            r, d = self._get_reward_and_done(i)
-            self.done[i] = d
-            reward.append(r)
             observations.append(self.get_observation(i))
 
-        return observations, reward, self.done, None
+        # cooperation: all rewards are the same for every agent
+        rewards = [self.reward for _ in range(self.n_agents)]
+        done = [self.done for _ in range(self.n_agents)]
+
+        return observations, rewards, done, None
 
     def _encode_id(self, i):
         """ encode list containing id of the agent """
-        return [i]
-        #return [i - self._mean_code_agent]
+        return [self._agent_codes[i]]
 
     def _encode_pos(self, pos):
         """ encode list containing info of position """
-        return [pos[0], pos[1]]
         m_0, m_1 = self._mean_code_grid
         code_x = pos[0] - m_0
         code_y = pos[1] - m_1
-        return [code_x, code_y]
+        return [np.asarray([code_x, code_y])]
 
     def _encode_goal(self, goal): 
-        return [goal[0], goal[1]]
         agent, lmark = goal
-        code_agent = agent - self._mean_code_agent
-        code_lmark = lmark - self._mean_code_lmark
+        code_agent = self._agent_codes[agent]
+        code_lmark = self._landmark_codes[agent]
         return [code_agent, code_lmark]
 
     def observation_space_size(self):
-        return len(get_observation(0))
+        return len(self.get_observation(0))
 
     def action_space_size(self):
         return 4
+
+    def _encode_speech(self, s):
+        """ encode s, a token from {0..self.vocab_size-1} """
+        return [self._speech_codes[s]]
 
     def get_observation(self, i):
         """ return a list containing:
@@ -183,6 +208,31 @@ class MultiAgentCoop(object):
         # o_i(t) = [i, x_i, c_1..N, m_i, g_i]$
         o = self._encode_id(i)
         o += self._encode_goal(self.goals[i])
-        for pos in self.agent_pos + self.landmarks:
-            o.extend(self._encode_pos(pos))
-        return o
+        for pos in [self.agent_pos[i]] + self.landmarks:
+            o += self._encode_pos(pos)
+        for s in self.current_speeches:
+            o += self._encode_speech(s)
+        return np.concatenate(o)
+    
+    def render(self):
+        arr = np.chararray(self.grid_size)
+        print "Render environment: (agents: a..z, landmarks 1..9, agents over land: A..Z)"
+        nothing_char = '.'
+        arr[:] = nothing_char
+        for i, pos in enumerate(self.landmarks):
+            arr[pos[0], pos[1]] = i+1
+        for i, pos in enumerate(self.agent_pos):
+            if arr[pos[0], pos[1]] == nothing_char:
+                arr[pos[0], pos[1]] = chr(97+i)
+            else:
+                arr[pos[0], pos[1]] = chr(65+i)
+
+
+
+        # pretty print array
+        for i in arr:
+            for j in i:
+                print j,
+            print ""
+        print "communication:", self.current_speeches
+        print "reward, done:", self.reward, self.done

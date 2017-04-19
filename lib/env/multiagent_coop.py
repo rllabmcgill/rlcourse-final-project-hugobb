@@ -18,7 +18,7 @@ class MultiAgentCoop(object):
         grid_size:
             tuple (x_size, y_size)
         """
-        assert(n_agents > 0 and n_landmarks > 0)
+        assert(n_agents > 1 and n_landmarks > 0)
         self.vocab_size = vocab_size
         self.grid_size = grid_size
         self.n_landmarks = n_landmarks
@@ -61,7 +61,7 @@ class MultiAgentCoop(object):
         """
         self.done = False
         self.reward = False
-        self.current_speeches = []
+        self.current_speeches = [0,]*self.n_agents # TODO: change that?
         # following variable indicates whether agent has reached his goal, 
         # i.e. whether he has made ANOTHER agent reach a landmark
         self.already_reached = [False]*self.n_agents
@@ -113,7 +113,7 @@ class MultiAgentCoop(object):
             while start_pos in self.landmarks:
                 start_pos = self._pos_init()
             self.agent_pos.append(start_pos)
-        observations = [self.get_observation(i) for i in range(self.n_agents)]
+        observations = [self._get_observation(i) for i in range(self.n_agents)]
         return observations
 
     def _move(self, i, action):
@@ -153,7 +153,7 @@ class MultiAgentCoop(object):
         return reward, done
 
     def step(self, actions, speeches):
-        self.current_speeches = speeches
+        self.current_speeches = [int(s) for s in speeches]
 
         if not self.done:
             for i in range(self.n_agents):
@@ -163,8 +163,8 @@ class MultiAgentCoop(object):
         
         observations = []
         for i in range(self.n_agents):
-            observations.append(self.get_observation(i))
-
+            observations.append(self._get_observation(i))
+        
         # cooperation: all rewards are the same for every agent
         rewards = [self.reward for _ in range(self.n_agents)]
         done = [self.done for _ in range(self.n_agents)]
@@ -189,7 +189,7 @@ class MultiAgentCoop(object):
         return [code_agent, code_lmark]
 
     def observation_space_size(self):
-        return len(self.get_observation(0))
+        return len(self._get_observation(0))
 
     def action_space_size(self):
         return 4
@@ -198,7 +198,7 @@ class MultiAgentCoop(object):
         """ encode s, a token from {0..self.vocab_size-1} """
         return [self._speech_codes[s]]
 
-    def get_observation(self, i):
+    def _get_observation(self, i):
         """ return a list containing:
         - id of the agent (i)
         - goal: id of the agent j and landmark k 
@@ -226,8 +226,6 @@ class MultiAgentCoop(object):
                 arr[pos[0], pos[1]] = chr(97+i)
             else:
                 arr[pos[0], pos[1]] = chr(65+i)
-
-
 
         # pretty print array
         for i in arr:

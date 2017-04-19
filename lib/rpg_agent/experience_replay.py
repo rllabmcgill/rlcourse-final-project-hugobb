@@ -29,7 +29,8 @@ class ExperienceReplay(object):
         else: return lastly inserted
         """
         if random_order:
-            idx = np.random.choice(len(self.exp), size, replace=False)
+            idx = np.random.choice(len(self.exp), 
+                                   size=min(len(self.exp), size), replace=False)
             return [self.exp[i] for i in idx]
         else:
             return self.exp[-size:]

@@ -164,7 +164,6 @@ class MultiAgentCoop(object):
         observations = []
         for i in range(self.n_agents):
             observations.append(self._get_observation(i))
-        
         # cooperation: all rewards are the same for every agent
         rewards = [self.reward for _ in range(self.n_agents)]
         done = [self.done for _ in range(self.n_agents)]
@@ -226,7 +225,6 @@ class MultiAgentCoop(object):
                 arr[pos[0], pos[1]] = chr(97+i)
             else:
                 arr[pos[0], pos[1]] = chr(65+i)
-
         # pretty print array
         for i in arr:
             for j in i:

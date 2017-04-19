@@ -38,3 +38,4 @@ def test_multiagent_coop():
             if np.all(done):
                 break
         assert(cum_return == n_agents or not np.all(done) and cum_return < n_agents)
+

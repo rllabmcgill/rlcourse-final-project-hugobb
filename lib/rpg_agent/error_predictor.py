@@ -13,9 +13,11 @@ class ErrorPredictor(object):
         learning_rate: learning rate
         hid_size: cell/hidden state size
         """
-        l_in, l_out = self._build_lstm(feature_size, hid_size)
+        l_in, l_mask, l_out = self._build_lstm(feature_size, hid_size)
 
         X = l_in.input_var
+        mask = l_mask.input_var
+
         Y_pred = lasagne.layers.get_output(l_out)
         Y_true = T.matrix('targets', dtype=theano.config.floatX)
 
@@ -24,8 +26,8 @@ class ErrorPredictor(object):
         params = lasagne.layers.get_all_params(l_out, trainable=True)
         updates = adam(mean_loss, params, learning_rate=learning_rate)
 
-        self.predict_f = theano.function([X], Y_pred)
-        self.train_f = theano.function([X, Y_true],
+        self.predict_f = theano.function([X, mask], Y_pred)
+        self.train_f = theano.function([X, mask, Y_true],
                                        mean_loss, updates=updates)
 
     def _build_lstm(self, n_in, n_h):
@@ -34,17 +36,19 @@ class ErrorPredictor(object):
         returns first and last lasagne layer of lstm
         """
         l_in = lasagne.layers.InputLayer(shape=(None, None, n_in))
-        l_lstm = lasagne.layers.LSTMLayer(l_in, n_h, learn_init = True, peepholes = False)
+        l_mask = lasagne.layers.InputLayer(shape=(None,None))
+        l_lstm = lasagne.layers.LSTMLayer(l_in, n_h, learn_init = True,
+                                          peepholes = False, mask_input=l_mask)
         l_shp = lasagne.layers.ReshapeLayer(l_lstm, (-1, n_h))
         l_out_pre = lasagne.layers.DenseLayer(l_shp, 1, nonlinearity=lasagne.nonlinearities.linear)
         batchsize, seqlen, _ = l_in.input_var.shape
         l_out = lasagne.layers.ReshapeLayer(l_out_pre, (batchsize, seqlen))
-        return l_in, l_out
+        return l_in, l_mask, l_out
 
-    def predict(self, observations):
-        return self.predict_f(observations)
+    def predict(self, observations, mask):
+        return self.predict_f(observations, mask)
 
-    def train(self, observations, targets):
-        return self.train_f(observations, targets)
+    def train(self, observations, mask, targets):
+        return self.train_f(observations, mask, targets)
 
 

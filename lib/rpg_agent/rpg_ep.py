@@ -141,7 +141,7 @@ class RPGRecurrentBaseline():
             a, X, R, mask = self._process_history(batch)
             X_b = self._get_baseline_features(X)
             bs, L, _ = X.shape
-            b = self.baseline.predict(X_b).reshape((bs, L))
+            b = self.baseline.predict(X_b, mask).reshape((bs, L))
             #print "a", a.shape
             #print "X", X.shape
             #print "R", R.shape
@@ -157,7 +157,7 @@ class RPGRecurrentBaseline():
         a, X, R, mask = self._process_history(batch)
         X_b = self._get_baseline_features(X)
         bs, L, _ = X.shape
-        b = self.baseline.predict(X_b).reshape((bs, L))
+        b = self.baseline.predict(X_b, mask).reshape((bs, L))
         X = np.dstack([X, a])
         return [a, X, R, mask, X_b, b]
 
@@ -168,7 +168,7 @@ class RPGRecurrentBaseline():
             batch = self.experience.get_batch(self.batch_size, random_order=True)
             a, X, R, mask = self._process_history(batch)
             X_b = self._get_baseline_features(X)
-            err.append(self.baseline.train(X_b, R))
+            err.append(self.baseline.train(X_b, mask, R))
         #if np.mean(err) < 10.0:
         #    break
         print "training baseline...", np.mean(err)

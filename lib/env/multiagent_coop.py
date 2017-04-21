@@ -184,7 +184,7 @@ class MultiAgentCoop(object):
     def _encode_goal(self, goal): 
         agent, lmark = goal
         code_agent = self._agent_codes[agent]
-        code_lmark = self._landmark_codes[agent]
+        code_lmark = self._landmark_codes[lmark]
         return [code_agent, code_lmark]
 
     def observation_space_size(self):

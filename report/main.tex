@@ -38,11 +38,11 @@ Hugo berard
 \maketitle
 
 \begin{abstract}
-Blabla
 \end{abstract}
 
 \section{Introduction}
-Blabla\cite{mordatch2017emergence}
+The goal of this project is to study how policy gradients methods and Deep Q-Learning (DQN) performs in a partially observable environement (POMDP) with several agents. In particular we wanted to study how agents can learn to exchange message and communicate in order to solve a task. Our approcah was insbyred by \cite{mordatch2017emergence} and \cite{foerster2016learning}. We tried to evaluate the different approaches on a grid world task where the goal was to find some landmarks indicated by some other agents.
+
 \section{Models}
 \subsection{Recurrent Policy Gradients}
 Indirect RL approaches to control require learning a value-state function $Q(s,a)$. Policy are derived from $Q$ by maximizing over actions (\textit{greedifying}). On the contrary, with Policy Gradient (PG) methods, the policy is directly parametrized. There are several motivations for doing that\cite{sutton1998reinforcement}. Firstly, in control problems, the $Q$ function is not the quantity of interest. Furthermore, computing this quantity can be a harder problem. Finally, by comparison with $\epsilon$-greedy policy where the entropy or randomness of the policy is fixed using $\epsilon$, here it is flexible and adjusted during the learning process. Here we consider learning stochastic policies. The policy is denoted by $\pi_{\theta}$ and the objective is then to find the parameters $\theta$ that maximize the value function of the policy evaluated in the start state:
@@ -108,10 +108,16 @@ The fact that the rewards are shared is essential. Without this, agents would ha
 \section{Results}
 For all experiments we use Adam \cite{kingma2014adam} with $alpha=1.10^{-3}, \beta_1=0.9, \beta_2=0.999$ and minibatches of size 32. During training we follow an $\epsilon$-greedy policy starting with $1$ and decaying lienarly to $0.1$ over $5.10^4$ steps. We used a replay memory of 25 000 transitions and the target network was updated every 10 000 updates.
 \subsection{2 Agents Fully Observable}
-To test the environement and the approach we first train 2 agents, on the fully observable task.
+To test the environement and the approach we first train 2 agents, on a fully observable task with 2 landmarks.
 We tried both using a recurrent layer and without. The architecture used  consist of one hidden layer of 32 units, followed by a layer that output one single value per action corresponding to the Q-value of that function. For the recurrent architecture, the hiddent layer is replaced by a lstm layer with the same number of units, and the episode was unrolled for 4 time steps.
+
 For both models the training is quite unstable, and starts to diverge as soon as the optimal policy is almost reached. We're not sure why this behavior occur, we tried to anneal the learning rate but it doesn't seem to work better.
 
+\begin{figure}[h]
+\centering
+\includegraphics[width=\textwidth]{multiagent_mdp_results.png}
+\caption{The average length and reward of the different models. The results are averaged over 100 episodes.}
+\end{figure}
 
 \subsection{2 Agents Partially Observable}
 Unfortunately we were unable to make DQN works on that example.

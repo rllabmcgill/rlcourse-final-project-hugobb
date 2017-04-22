@@ -15,7 +15,7 @@ if __name__ == '__main__':
     path = args.save
 
     replay_start_size = 25000
-    train_epoch_length = 10000
+    train_epoch_length = 5000
     test_epoch_length = 5000
     n_epochs = 100
     n_agents = 2

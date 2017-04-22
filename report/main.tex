@@ -99,13 +99,33 @@ The environment is a POMDP. There are $N$ agents and $M$ landmarks which are def
 
 To sum up, at each timestep, the observation of agent $i$ is a vector $o_i(t) = [i, x_i, c_{1..N}, g_i]$
 
-The fact that the rewards are shared is essential. Without this, agents would have no incentive to make other agents fulfill their goals.
+The fact that the rewards are shared is essential. Without this, agents would have no incentive to make other agents fulfill their goals. An episode terminate when all the agents have reached their goal landmark once.
 
 \section{Results}
-For all experiments we use Adam \cite{kingma2014adam} with $alpha=1.10^{-3}, \beta_1=0.9, \beta_2=0.999$ and minibatches of size 32. During training we follow an $\epsilon$-greedy policy starting with $1$ and decaying lienarly to $0.1$ over $5.10^4$ steps. We used a replay memory of 25 000 transitions and the target network was updated every 10 000 updates.
 \subsection{RPG}
-Work in progress. It is still computing, should be finished by saturday 22 before midday.
+The simplest environment has 2 agents and 3 landmarks located on a $5 \times 5$ grid world. With as little as 2 agents, the goal of each agent concern the other agent. Thus, the only information each agent needs to transmit is the ID of the landmark. The vocabulary contains 5 different tokens, which contains more tokens than necessary to disambiguate between the 3 landmarks. When the episodes have not terminated after the 50th timestep, we cut them. It still manages to learn meaningful policies because the episodes that do terminate provide reinforcement to good actions, while not terminated episodes lower the probabilities of actions taken. 
+
+We ran a limited hyperparameter search one one trial per set of hyperparameters for computational reasons. Figure \ref{hyper_rpg} shows the results. Unsurprisingly, the larger the batch size, the faster the length of episodes go down. One can also hope that it can go further down with more iterations. 
+
+\begin{figure}[h]
+\label{hyper_rpg}
+\centering
+\includegraphics[width=\textwidth]{hyperparams_rpg.png}
+\caption{Every datapoint is the average episode length of the last thousand episodes. gamma is the discounting factor, lr is the learning rate, experience memory is the number of total episodes stored in the memory. Training was done every freq\_train episode for n\_iter\_per\_train iterations.}
+\end{figure}
+
+Overall, we have not managed to learn the optimal policy which should involve communication. The best set of hyperparameters reach an average of around 16 timesteps per episode that includes episodes cut off at the 50th timesteps. It is possible that the agents learn to visit the 2 landmarks that do not appear in their goals in a random order. We have computed Kendall's tau (a non-parametric test for evaluating correlations among categorial random variables) on the most sent token per episode and the goal landmark to transmit but have not found any significant correlation. This means that the agents are not communicating efficiently through the communication channel.
+
+For simplicity, we have implemented the simplest kind of experiment but this is not enough. By comparison with another paper\cite{foerster2016learning}, we are in the setting of Reinforced Inter-Agent Learning (RIAL) which is the least successful learning method. By comparison, Differentiable Inter-Agent Learning (DIAL) allows to solve much harder tasks. The difference is that DIAL allows gradients to flow through one agent's parameters to another's. 
+
+Under the DIAL setting, gradients propagated across agents make it much easier to learn but it is sort of counter-intuitive as it implies that there is already a meta communication protocol available during learning: backpropagation. In our case, on the contrary, an agent consider the other agent as part of the environment. Because the 2 agents concurrently learn, it makes the environment highly non-stationary. 
+
+One possibly related problem of our implementation is that the parameters of the two agents change at the same time every $n$ iterations. It means that neither agent can adapt to a quick change in the policy of the other as the changes are done at once. It could help to shift the updates in time.
+
+Another drawback of our code is that it does not allow easy parameter-sharing between agents. As shown in \cite{foerster2016learning}, parameter-sharing significantly improves result. This is due to the simple fact that agents can get as much more learning as there are agents interacting. A consequence of not using weight-sharing is problematic: the vocabulary can have different meaning during emission and reception of a message. For example, agent 1 can emit token 1 to mean landmark 2 and understand token 1 coming from agent 2 as meaning landmark 1. 
+
 \subsection{2 Agents Fully Observable}
+For all experiments we use Adam \cite{kingma2014adam} with $alpha=1.10^{-3}, \beta_1=0.9, \beta_2=0.999$ and minibatches of size 32. During training we follow an $\epsilon$-greedy policy starting with $1$ and decaying lienarly to $0.1$ over $5.10^4$ steps. We used a replay memory of 25 000 transitions and the target network was updated every 10 000 updates.
 To test the environement and the approach we first train 2 agents, on a fully observable task with 2 landmarks.
 We tried both using a recurrent layer and without. The architecture used  consist of one hidden layer of 32 units, followed by a layer that output one single value per action corresponding to the Q-value of that function. For the recurrent architecture, the hiddent layer is replaced by a lstm layer with the same number of units, and the episode was unrolled for 4 time steps.
 

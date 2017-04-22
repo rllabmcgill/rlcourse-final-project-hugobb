@@ -1,1 +1,1 @@
-from multiagent import *
+from gridworld import GridWorld

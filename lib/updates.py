@@ -2,7 +2,7 @@ from collections import OrderedDict
 import numpy as np
 import theano
 import theano.tensor as T
-from lasagne.updates import rmsprop, adam, get_or_compute_grads
+from lasagne.updates import rmsprop, adam, get_or_compute_grads, sgd
 
 class DeepMindRmsprop(object):
     def __init__(self, learning_rate, rho, epsilon):
@@ -55,3 +55,10 @@ class Adam(object):
     def __call__(self, loss_or_grads, params):
         return adam(loss_or_grads, params, self.learning_rate, self.beta1,
                     self.beta2, self.epsilon)
+
+class SGD(object):
+    def __init__(self, learning_rate=0.001):
+        self.learning_rate = learning_rate
+
+    def __call__(self, loss_or_grads, params):
+        return sgd(loss_or_grads, params, learning_rate=self.learning_rate)

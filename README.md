@@ -1,4 +1,4 @@
-#Experiments on Learning to communicate
+# Experiments on Learning to communicate
 by Hugo Berard and Tom Bosc
 
 This repository contains the code, the slides and the report for our project on Learning to Communicate.

@@ -16,7 +16,7 @@ import json
 import copy
 
 
-parser = argparse.ArgumentParser(description='Train model')
+parser = argparse.ArgumentParser(description='Train model in coop environment')
 parser.add_argument('-m', dest='model_dir', type=str, required=True,
                     help='Directory of the gym model')
 parser.add_argument('-n', dest='n_episodes', type=int, required=True,

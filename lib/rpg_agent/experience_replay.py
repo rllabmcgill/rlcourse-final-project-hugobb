@@ -10,7 +10,8 @@ class ExperienceReplay(object):
     """
     def __init__(self, maxlen):
         """
-        maxlen is the size of deque
+        maxlen is the size of the experience replay buffer 
+        i.e. the # of trajectories to store
         """
         self.maxlen = maxlen
         self.exp = []

@@ -132,9 +132,6 @@ class LSTM():
             updates_opt = sgd(gradients, self.params, lr)
         else:
             raise NotImplementedError
-        #for k in updates_opt.keys():
-        #    print "update:", k.name, k
-        #print len(updates+updates_opt)
         self.train_f = function([X, R, one_hot_a, mask, b], gradients, updates=updates+updates_opt)
         self.reset()
 

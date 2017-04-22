@@ -23,6 +23,10 @@ from error_predictor import ErrorPredictor
 floatX = theano.config.floatX
 
 class RPGRecurrentBaseline():
+    """
+    This is a basic version of RPG with only one action space
+    (i.e. the output of the LSTM is the params of the distrib of 1 categorical)
+    """
     def __init__(self, obs_space_size, action_space_size, n_h,
                  output_activation, gamma, lr, batch_size=128,
                  freq_train = 50, maxlen = 500, n_iter_per_train=10):
@@ -47,9 +51,7 @@ class RPGRecurrentBaseline():
     def reset(self, o):
         self.count_episode += 1
         if len(self.current_h) > 0:
-            #print "last episode added:", [e[1] for e in self.current_h], len(self.current_h)
             self.experience.append(self.current_h)
-
         self.current_h = []
         if self.count_episode % self.freq_train == 0:
             self._train()
@@ -106,11 +108,12 @@ class RPGRecurrentBaseline():
             a_i = np.zeros((L, self.n_out))
             a_i[np.arange(l), [int(s[2]) for s in h]] = 1
             a.append(self._pad(a_i, L))
-
+            
+            # following code is sort of ugly but is useful to shift all the 
+            # actions by one timestep
             X_i = np.hstack([h[0][0], np.asarray(h[0][1]), np.zeros(self.n_out)])
             if l>1:
                 X_i_rest = np.vstack([np.hstack([s[0], np.asarray([s[1]]), a_i[i-1]]) for i, s in enumerate(h[1:])])
-                #print "Xirest", X_i_rest.shape
                 X_i = np.vstack([X_i, X_i_rest])
             else:
                 X_i = X_i.reshape((1,-1))
@@ -142,15 +145,7 @@ class RPGRecurrentBaseline():
             X_b = self._get_baseline_features(X)
             bs, L, _ = X.shape
             b = self.baseline.predict(X_b, mask).reshape((bs, L))
-            #print "a", a.shape
-            #print "X", X.shape
-            #print "R", R.shape
-            #print "mask", mask.shape
-            #print "X_b", X_b.shape
-            #print "a", a.shape
             grads = self.lstm.train_f(X, R, a, mask, b)
-            #for g in grads:
-            #    print "min, mean, max", np.min(g), "," ,np.mean(g), ",", np.max(g)
         
     def get_debug_info(self):
         batch = self.experience.get_batch(self.batch_size, random_order=True)
@@ -162,16 +157,13 @@ class RPGRecurrentBaseline():
         return [a, X, R, mask, X_b, b]
 
     def _train_baseline(self, n_iter=50):
-        # Maybe for a start only do SGD to avoid using masks
         err = []
         for i in range(n_iter):
             batch = self.experience.get_batch(self.batch_size, random_order=True)
             a, X, R, mask = self._process_history(batch)
             X_b = self._get_baseline_features(X)
             err.append(self.baseline.train(X_b, mask, R))
-        #if np.mean(err) < 10.0:
-        #    break
-        print "training baseline...", np.mean(err)
+        #print "training baseline...", np.mean(err)
         return np.mean(err)
             
     def sample_action(self, o_t, r_t, a_t_1):
@@ -184,13 +176,8 @@ class RPGRecurrentBaseline():
     
     def update(self, o_t, a_t, o_t_1, r_t, done):
         # store history in experience
-        # TODO: maybe experience should directly be stored as an ndarray?
-        # we don't want the preprocessing to occur at train time as we 
-        # access more than we store. 
-        # discard done
         h = (o_t, r_t, a_t)
         self.current_h.append(h)
-        return None
 
 if __name__=="__main__":
-    agent = RPG(2, 2, 14, softmax, 0.99, 0.6, 0.001)
+    agent = RPGRecurrentBaseline(2, 2, 14, softmax, 0.99, 0.6, 0.001)

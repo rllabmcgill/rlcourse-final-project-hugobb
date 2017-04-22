@@ -121,23 +121,13 @@ class RPGCommunicate(RPGRecurrentBaseline):
         return a, c, X, R, mask
        
     def _train(self):
-        # Maybe for a start only do SGD to avoid using masks
-
         for i in range(self.n_iter_per_train):
             batch = self.experience.get_batch(self.batch_size, random_order=True)
             a, c, X, R, mask = self._process_history(batch)
             X_b = self._get_baseline_features(X)
             bs, L, _ = X.shape
             b = self.baseline.predict(X_b, mask).reshape((bs, L))
-            #print "a", a.shape
-            #print "X", X.shape
-            #print "R", R.shape
-            #print "mask", mask.shape
-            #print "X_b", X_b.shape
-            #print "a", a.shape
             grads = self.lstm.train_f(X, R, mask, b, a, c)
-            #for g in grads:
-            #    print "min, mean, max", np.min(g), "," ,np.mean(g), ",", np.max(g)
         
     def get_debug_info(self):
         batch = self.experience.get_batch(self.batch_size, random_order=True)
@@ -181,7 +171,3 @@ class RPGCommunicate(RPGRecurrentBaseline):
     def update(self, o_t, a_t, c_t, o_t_1, r_t, done):
         h = (o_t, r_t, a_t, c_t)
         self.current_h.append(h)
-        return None
-
-if __name__=="__main__":
-    agent = RPGRecurrentBaseline(2, 2, 14, softmax, 0.99, 0.6, 0.001)

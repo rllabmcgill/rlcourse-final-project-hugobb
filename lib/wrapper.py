@@ -1,13 +1,13 @@
 import numpy as np
 from tqdm import tqdm
+import theano
 
 class EnvWrapper(object):
-    def __init__(self, env, agents, seq_length=4, max_no_op=30,
+    def __init__(self, env, agents, max_no_op=0,
                 preprocess=lambda x: x, init_epsilon=1.,
-                epsilon_decay=int(1e6), epsilon_min=0.8, update_frequency=4, batch_size=32):
+                epsilon_decay=int(1e6), epsilon_min=0.1, update_frequency=1, batch_size=32):
         self.env = env
         self.num_actions = len(self.env.action_space)
-        self.seq_length = seq_length
         self.max_no_op = max_no_op
         self.preprocess = preprocess
         self.epsilon_start = init_epsilon
@@ -20,12 +20,13 @@ class EnvWrapper(object):
             self.epsilon_rate = 0
 
         self.update_frequency = update_frequency
-        self.batch_size = batch_size
         self.agents = agents
         for a in self.agents:
-            a.init(self.num_actions, self.seq_length, self.batch_size)
+            a.init(self.num_actions)
 
     def run_episode(self, max_steps, eps, mode='train'):
+        for agent in self.agents:
+            agent.reset()
         frame = self.env.reset()
         if self.max_no_op > 0:
             random_actions = np.random.randint(self.max_no_op+1)
@@ -61,56 +62,40 @@ class EnvWrapper(object):
                 break
 
             observation = self.preprocess(frame)
+            for i, o in enumerate(observation):
+                observation[i] = np.asarray(o, dtype=theano.config.floatX).reshape((1,-1))
+
             if mode == 'test':
                 for i, agent in enumerate(self.agents):
                     if not done_all_agent[i]:
-                        agent.test_memory.append(last_frame[i], last_action[i], np.clip(reward[i],-1,1), False)
-                        if num_steps >= self.seq_length:
-                            state = agent.test_memory.get_state(observation[i], self.seq_length)
-                            action[i] = agent.get_action(state, eps=eps)
-                        else:
-                            action[i] = np.random.randint(self.num_actions)
+                        action[i] = agent.get_action(observation[i], eps=eps)
+
             elif mode == 'init':
                 for i, agent in enumerate(self.agents):
                     if not done_all_agent[i]:
                         agent.replay_memory.append(last_frame[i], last_action[i], np.clip(reward[i],-1,1), False)
-                        if num_steps >= self.seq_length:
-                            state = agent.replay_memory.get_state(observation[i], self.seq_length)
-                            action[i] = agent.get_action(state, eps=eps)
-                        else:
-                            action[i] = np.random.randint(self.num_actions)
+                        action[i] = agent.get_action(observation[i], eps=eps)
 
             elif mode == 'train':
                 self.epsilon = max(self.epsilon_min, self.epsilon - self.epsilon_rate)
                 for i, agent in enumerate(self.agents):
                     if not done_all_agent[i]:
                         agent.replay_memory.append(last_frame[i], last_action[i], np.clip(reward[i],-1,1), False)
-                        if num_steps >= self.seq_length:
-                            state = agent.replay_memory.get_state(observation[i], self.seq_length)
-                            action[i] = agent.get_action(state, eps=self.epsilon)
-                        else:
-                            action[i] = np.random.randint(self.num_actions)
+                        action[i] = agent.get_action(observation[i], eps=self.epsilon)
 
                         if num_steps % self.update_frequency == 0:
-                            s, a, r, d = agent.replay_memory.sample(self.seq_length, self.batch_size)
-                            loss[i] += agent.train(s, a, r, d)
+                            loss[i] += agent.train()
 
             elif mode == 'render':
                 self.env.render()
-                self.test_memory.append(last_frame, last_action, np.clip(reward[i],-1,1), False)
-                if num_steps >= self.seq_length:
-                    state = self.test_memory.get_state(observation, self.seq_length)
-                    action = self.agent.get_action(state, eps=eps)
-                else:
-                    action = np.random.randint(self.num_actions)
+                for i, agent in enumerate(self.agents):
+                    if not done_all_agent[i]:
+                        action = self.agent.get_action(observation[i], eps=eps)
 
             elif mode == 'baseline':
-                self.test_memory.append(last_frame, last_action, np.clip(reward[i],-1,1), False)
-                if num_steps >= self.seq_length:
-                    state = self.test_memory.get_state(observation, self.seq_length)
-                    action = self.agent.get_action(state, eps=eps)
-                else:
-                    action = np.random.randint(self.num_actions)
+                for i, agent in enumerate(self.agents):
+                    if not done_all_agent[i]:
+                        action = self.agent.get_action(observation[i], eps=eps)
             else:
                 raise ValueError('Wrong mode, choose between init|train|test')
 

@@ -8,7 +8,8 @@ from nn import MLP
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-s', '--save', help='The path of the directory where to save results.', type=str, default='results/mdp_dense')
+    parser.add_argument('-s', '--save', help='The path of the directory where to save results.',
+                        type=str, default='results/multiagent_mdp_mlp')
     args = parser.parse_args()
 
     path = args.save
@@ -16,16 +17,19 @@ if __name__ == '__main__':
     replay_start_size = 25000
     train_epoch_length = 10000
     test_epoch_length = 5000
-    n_epochs = 20
+    n_epochs = 100
+    n_agents = 2
+    n_landmarks = 2
+    state_space = (3*n_agents+2*n_landmarks,)
+    mem_size = 25000
+    norm = 4.0
+    update_frequency = 20000
 
-    agent1 = DeepQAgent(MLP(), double_q_learning=False,
-                update_frequency=10000, norm=4.0, memory_size=25000, state_space=(10,))
-    agent2 = DeepQAgent(MLP(), double_q_learning=False,
-                update_frequency=10000, norm=4.0, memory_size=25000, state_space=(10,))
+    agent1 = DeepQAgent(MLP(), state_space=state_space, update_frequency=update_frequency, norm=norm, memory_size=mem_size)
+    agent2 = DeepQAgent(MLP(), state_space=state_space, update_frequency=update_frequency, norm=norm, memory_size=mem_size)
 
     env = GridWorld(2, max_length=50)
-    env_wrapper = EnvWrapper(env, [agent1, agent2], seq_length=1, update_frequency=1,
-                                epsilon_decay=int(5e4), epsilon_min=0.1, max_no_op=0)
+    env_wrapper = EnvWrapper(env, [agent1, agent2], epsilon_decay=int(5e4), epsilon_min=0.1)
 
     if not os.path.exists(path):
         os.makedirs(path)

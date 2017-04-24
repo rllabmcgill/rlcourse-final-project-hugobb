@@ -36,9 +36,9 @@ Hugo Berard, Tom Bosc
 \maketitle
 
 \section{Introduction}
-There is a recent surge of papers on the theme of learning to communicate \cite{sukhbaatar2016learning} \cite{foerster2016learning} \cite{lazaridou2016multi} \cite{mordatch2017emergence}. The common setting is a Partially Observable Markov Decision Process (POMDP) where several agents act at each timestep and share the same rewards. The environments are designed so that communication is necessary to for agents to get a reward: one agent has an information which another agent needs to pick the action that leads to the rewards. The emphasis is on learning the language, that is, tokens emitted by agents don't have a predetermined meaning. Rather, the meaning emerges from its use. 
+There is a recent surge of papers on the theme of learning to communicate \cite{sukhbaatar2016learning} \cite{foerster2016learning} \cite{lazaridou2016multi} \cite{mordatch2017emergence}. The common setting is a Partially Observable Markov Decision Process (POMDP) where several agents act at each timestep and share the same rewards. The environments are designed so that communication is necessary to for agents to get a reward: one agent has an information which another agent needs to pick the action that leads to the rewards. The emphasis is on learning the language, that is, tokens emitted by agents don't have a predetermined meaning. Rather, the meaning emerges from its use.
 
-The goal of this project is to study how Policy Gradients (PG) methods and Deep Q-Learning (DQN) perform in this kind of POMDP with several agents. The evaluation of the method is done on a grid world where communication is necessary to maximize the returns. 
+The goal of this project is to study how Policy Gradients (PG) methods and Deep Q-Learning (DQN) perform in this kind of POMDP with several agents. The evaluation of the method is done on a grid world where communication is necessary to maximize the returns.
 
 \section{Models}
 \subsection{Recurrent Policy Gradients}
@@ -63,7 +63,7 @@ We can estimate the empirical return with Monte-Carlo and the log of the policy 
 %\nabla_{\theta} E_{\pi_{\theta}}[R_t] = E[\frac{\partial \pi}{\partial y}] \frac{\partial y}{\partial \theta}
 %$$
 
-In POMDPs, the agent has to infer the state its in. Indeed, it only has access to an observation which is a function of the state. This partial observability is generally dealt with by adding memory to the agent: at each timestep, the agent updates its memory which contains probabilities to be in the true states. Based on this probability that we call belief\footnote{Because of the equivalence between POMDPs and Belief MDPs, which are MDPs where the states live in the probability simplex on the states of the original POMDP.}, the agent can decide on actions. 
+In POMDPs, the agent has to infer the state its in. Indeed, it only has access to an observation which is a function of the state. This partial observability is generally dealt with by adding memory to the agent: at each timestep, the agent updates its memory which contains probabilities to be in the true states. Based on this probability that we call belief\footnote{Because of the equivalence between POMDPs and Belief MDPs, which are MDPs where the states live in the probability simplex on the states of the original POMDP.}, the agent can decide on actions.
 
 Recurrent Policy Gradients\cite{wierstra2010recurrent} (RPG) is a PG algorithm that can solve POMDPs. It combines REINFORCE with Recurrent Neural Networks (RNN). REINFORCE can be used jointly with backpropagation as it is in general a gradient estimator\cite{williams1992simple}. If the policy $\pi$ is a probability mass or density function parametrized by parameters $y(\theta)$ where $y$ is a deterministic function, we can decompose the expectation of the gradient using the chain rule:
 
@@ -71,7 +71,7 @@ $$ E[\frac{\partial \pi}{\partial \theta_i}] = E[\frac{\partial \pi}{\partial y}
 
 In the case of RPG, REINFORCE is computed on the stochastic outputs units of the RNN (first factor of RHS) whereas regular backpropagation is used on the deterministic part of the RNN (second factor of RHS). Here, $y_t = f(h_t, \theta)$ where $h_t$ is the hidden state of the LSTM at timestep $t$. The hidden state can be seen as the belief and the updates are learned and represented as the transition matrix. The inputs of the LSTM are the observations of the agent, the last action that was performed by the agent (necessary because the policy is stochastic) and the reward. The outputs of the LSTM are the parameters of the distribution from which the actions will be sampled.
 
-A Long Short-Term Memory\cite{hochreiter1997long} (LSTM) RNN is chosen for convenience and performance. 
+A Long Short-Term Memory\cite{hochreiter1997long} (LSTM) RNN is chosen for convenience and performance.
 
 To reduce variance, a baseline is used. In MDPs, baselines are taken to be $v_{\pi}$ so that the log gradient term is weighted by the advantage function $q_{\pi}(s,a) - v_{\pi}(s) = A_{\pi}(s,a)$. Since we are in a POMDP, we can't estimate the state value function but instead learn an approximation based on the belief state. It is recommended to use another RNN as a baseline which takes the same inputs (except for the reward) and produce an estimate of the empirical returns. We can train this RNN supervisedly as we have access to the empirical returns.
 
@@ -93,7 +93,7 @@ In order to work well, we need to introce several tricks:
 \textbf{Recurrent Network}: To deal with the fact that the environement is partially observable, we add a recurrent layer so that the agent is able to remember the previous observation. To train the model, following \cite{hausknecht2015deep} we sample random episodes from the replay memory and unroll the episode for $n$ steps.
 
 \section{Gridworld experiment}
-This experiment is a simplified variant of \cite{mordatch2017emergence}. The main difference is that our environment has discrete action space and state space. This allows for a fairer comparison between RDQN and RPG. Indeed, Q-learning updates are computed by maximizing the action-state value function $Q(s,a)$ over actions which is in general costly in continuous action space. 
+This experiment is a simplified variant of \cite{mordatch2017emergence}. The main difference is that our environment has discrete action space and state space. This allows for a fairer comparison between RDQN and RPG. Indeed, Q-learning updates are computed by maximizing the action-state value function $Q(s,a)$ over actions which is in general costly in continuous action space.
 
 The environment is a POMDP. There are $N$ agents and $M$ landmarks which are defined by an integer $i$ and their respective coordinates $x_i$ on a squared grid. At each timestep, agents choose an action from $A={left, right, up, down}$ which makes them move\footnote{For simplicity's sake, we allow several agents to be on the same landmark at the same time.}. Agents know their own position as well as positions of the landmarks. In addition, each agent $i$ observes its own goal $g_i$ which is to direct another agent to one of the landmarks. All the agents are rewarded at once every first timestep one agent reach its assigned landmark. Because of partial observability of goals, agents need to communicate the location of the goal landmark to the goal agent. For that purpose, we allow the agent to emit one token $c \in C = \{1..V\}$ at each timestep which will be visible at the next timestep to everyone. Technically, the action space is now $C \times A$.
 
@@ -103,9 +103,9 @@ The fact that the rewards are shared is essential. Without this, agents would ha
 
 \section{Results}
 \subsection{RPG}
-The simplest environment has 2 agents and 3 landmarks located on a $5 \times 5$ grid world. With as little as 2 agents, the goal of each agent concern the other agent. Thus, the only information each agent needs to transmit is the ID of the landmark. The vocabulary contains 5 different tokens, which contains more tokens than necessary to disambiguate between the 3 landmarks. When the episodes have not terminated after the 50th timestep, we cut them. It still manages to learn meaningful policies because the episodes that do terminate provide reinforcement to good actions, while not terminated episodes lower the probabilities of actions taken. 
+The simplest environment has 2 agents and 3 landmarks located on a $5 \times 5$ grid world. With as little as 2 agents, the goal of each agent concern the other agent. Thus, the only information each agent needs to transmit is the ID of the landmark. The vocabulary contains 5 different tokens, which contains more tokens than necessary to disambiguate between the 3 landmarks. When the episodes have not terminated after the 50th timestep, we cut them. It still manages to learn meaningful policies because the episodes that do terminate provide reinforcement to good actions, while not terminated episodes lower the probabilities of actions taken.
 
-We ran a limited hyperparameter search one one trial per set of hyperparameters for computational reasons. Figure \ref{hyper_rpg} shows the results. Unsurprisingly, the larger the batch size, the faster the length of episodes go down. One can also hope that it can go further down with more iterations. 
+We ran a limited hyperparameter search one one trial per set of hyperparameters for computational reasons. Figure \ref{hyper_rpg} shows the results. Unsurprisingly, the larger the batch size, the faster the length of episodes go down. One can also hope that it can go further down with more iterations.
 
 \begin{figure}[h]
 \label{hyper_rpg}
@@ -116,13 +116,13 @@ We ran a limited hyperparameter search one one trial per set of hyperparameters 
 
 Overall, we have not managed to learn the optimal policy which should involve communication. The best set of hyperparameters reach an average of around 16 timesteps per episode that includes episodes cut off at the 50th timesteps. It is possible that the agents learn to visit the 2 landmarks that do not appear in their goals in a random order. We have computed Kendall's tau (a non-parametric test for evaluating correlations among categorial random variables) on the most sent token per episode and the goal landmark to transmit but have not found any significant correlation. This means that the agents are not communicating efficiently through the communication channel.
 
-For simplicity, we have implemented the simplest kind of experiment but this is not enough. By comparison with another paper\cite{foerster2016learning}, we are in the setting of Reinforced Inter-Agent Learning (RIAL) which is the least successful learning method. By comparison, Differentiable Inter-Agent Learning (DIAL) allows to solve much harder tasks. The difference is that DIAL allows gradients to flow through one agent's parameters to another's. 
+For simplicity, we have implemented the simplest kind of experiment but this is not enough. By comparison with another paper\cite{foerster2016learning}, we are in the setting of Reinforced Inter-Agent Learning (RIAL) which is the least successful learning method. By comparison, Differentiable Inter-Agent Learning (DIAL) allows to solve much harder tasks. The difference is that DIAL allows gradients to flow through one agent's parameters to another's.
 
-Under the DIAL setting, gradients propagated across agents make it much easier to learn but it is sort of counter-intuitive as it implies that there is already a meta communication protocol available during learning: backpropagation. In our case, on the contrary, an agent consider the other agent as part of the environment. Because the 2 agents concurrently learn, it makes the environment highly non-stationary. 
+Under the DIAL setting, gradients propagated across agents make it much easier to learn but it is sort of counter-intuitive as it implies that there is already a meta communication protocol available during learning: backpropagation. In our case, on the contrary, an agent consider the other agent as part of the environment. Because the 2 agents concurrently learn, it makes the environment highly non-stationary.
 
 One possibly related problem of our implementation is that the parameters of the two agents change at the same time every $n$ iterations. It means that neither agent can adapt to a quick change in the policy of the other as the changes are done at once. It could help to shift the updates in time.
 
-Another drawback of our code is that it does not allow easy parameter-sharing between agents. As shown in \cite{foerster2016learning}, parameter-sharing significantly improves result. This is due to the simple fact that agents can get as much more learning as there are agents interacting. A consequence of not using weight-sharing is problematic: the vocabulary can have different meaning during emission and reception of a message. For example, agent 1 can emit token 1 to mean landmark 2 and understand token 1 coming from agent 2 as meaning landmark 1. 
+Another drawback of our code is that it does not allow easy parameter-sharing between agents. As shown in \cite{foerster2016learning}, parameter-sharing significantly improves result. This is due to the simple fact that agents can get as much more learning as there are agents interacting. A consequence of not using weight-sharing is problematic: the vocabulary can have different meaning during emission and reception of a message. For example, agent 1 can emit token 1 to mean landmark 2 and understand token 1 coming from agent 2 as meaning landmark 1.
 
 \subsection{2 Agents Fully Observable}
 For all experiments we use Adam \cite{kingma2014adam} with $alpha=1.10^{-3}, \beta_1=0.9, \beta_2=0.999$ and minibatches of size 32. During training we follow an $\epsilon$-greedy policy starting with $1$ and decaying lienarly to $0.1$ over $5.10^4$ steps. We used a replay memory of 25 000 transitions and the target network was updated every 10 000 updates.
@@ -140,6 +140,9 @@ For both models the training is quite unstable, and starts to diverge as soon as
 \subsection{2 Agents Partially Observable}
 Unfortunately we were unable to make DQN works on that example.
 
-\bibliographystyle{unsrt}  
+\section{Conclusion}
+As our experiments show dealing with partially observable environement and multiple agents is a hard problem. In our case Policy gradient methods seem to perform better, since we couldn't succeed to make DQN converge in the partially observable setting. Even tough RPG method seems to work, it doesn't seem to use the communication channel. There is still a lot to explore to make those methods work, in particular we didn't try to use parameter sharing between the agents. We wish to continue to explore how to make DQN and RPG works on those tasks.
+
+\bibliographystyle{unsrt}
 \bibliography{bibliography}
 \end{document}
